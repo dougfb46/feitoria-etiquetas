@@ -22,6 +22,7 @@
   .imp span{flex:1;color:var(--muted)}
   .imp.on span{color:var(--ink)}
   .imp button{border:1px solid var(--line);background:var(--ground);color:var(--ink);border-radius:7px;padding:6px 11px;font-size:13px}
+  .imp select{width:auto;flex:0 0 auto;border:1px solid var(--line);background:var(--ground);color:var(--ink);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px}
   h1{font-size:22px;margin:0 0 4px}
   .sub{color:var(--muted);margin:0 0 18px;font-size:15px}
   .pinbox{max-width:320px;margin:6vh auto 0;text-align:center}
@@ -75,7 +76,10 @@
   var TAM_FALLBACK = { w_px:W, h_px:H, offset_y_px:0 };
 
   var S = { pin:'', sessao:null, produto:null, metodo:null, qtd:1, tela:'pin',
-            erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'' };
+            erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3 };
+
+  try { var dsalvo = parseInt(localStorage.getItem('feitoria_densidade'), 10);
+        if (dsalvo >= 1 && dsalvo <= 5) S.dens = dsalvo; } catch(e){}
   var app = document.getElementById('app');
 
   var METODOS = {
@@ -184,7 +188,12 @@
     }
     return null;
   }
-  function modelo(){ return acharNoRegistro('models','B1_Pro') || acharNoRegistro('models','B1 Pro') || MODELO_FALLBACK; }
+  function modelo(){
+    var base = acharNoRegistro('models','B1_Pro') || acharNoRegistro('models','B1 Pro') || MODELO_FALLBACK;
+    var copia = {}; for (var k in base) copia[k] = base[k];
+    copia.density = S.dens;   // densidade escolhida na tela vence a do registro
+    return copia;
+  }
   function tamanho(){ return acharNoRegistro('sizes','T50x30') || TAM_FALLBACK; }
 
   function conectar(botao){
@@ -192,9 +201,29 @@
     if (!window.Niimbot.isSupported || !window.Niimbot.isSupported()) {
       S.btMsg = 'Este navegador não fala Bluetooth. Use o Chrome no Android ou no computador.'; return render();
     }
+    // Transmissão mais conservadora no celular: o driver documenta que
+    // aparelhos móveis derrubam rajadas grandes de pacotes BLE.
+    try {
+      if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        window.Niimbot.PACE_MS = 16;
+        window.Niimbot.BUNDLE_MAX = 180;
+      }
+    } catch(e){}
+
     botao.disabled = true; botao.textContent = 'Procurando...';
     window.Niimbot.identify(modelo())
-      .then(function(info){ S.bt = info || true; S.btMsg = ''; render(); })
+      .then(function(info){
+        S.bt = info || true;
+        S.btMsg = '';
+        try {
+          var partes = [];
+          if (info && info.model) partes.push(String(info.model));
+          if (info && info.serial) partes.push('nº ' + info.serial);
+          if (info && info.battery != null) partes.push('bateria ' + info.battery);
+          S.btInfo = partes.join(' · ');
+        } catch(e){ S.btInfo = ''; }
+        render();
+      })
       .catch(function(e){ S.btMsg = 'Não conectou: ' + (e && e.message ? e.message : e); render(); });
   }
 
@@ -211,8 +240,20 @@
 
   function barraImpressora(){
     var ligada = !!S.bt;
+    var dens = '';
+    if (ligada) {
+      dens = '<select id="f-dens" title="Densidade">';
+      for (var d = 1; d <= 5; d++) {
+        dens += '<option value="' + d + '"' + (d === S.dens ? ' selected' : '') + '>' +
+                'Densidade ' + d + '</option>';
+      }
+      dens += '</select>';
+    }
     return '<div class="imp' + (ligada ? ' on' : '') + '"><div class="dotp"></div>' +
-      '<span>' + (ligada ? 'NIIMBOT B1 Pro conectada' : 'Impressora não conectada — sai pelo navegador') + '</span>' +
+      '<span>' + (ligada
+        ? 'NIIMBOT B1 Pro conectada' + (S.btInfo ? ' — ' + esc(S.btInfo) : '')
+        : 'Impressora não conectada — sai pelo navegador') + '</span>' +
+      dens +
       (ligada ? '<button data-a="teste">Teste</button>' : '<button data-a="conectar">Conectar</button>') +
       '</div>' + (S.btMsg ? '<div class="msg w">' + esc(S.btMsg) + '</div>' : '');
   }
@@ -288,6 +329,14 @@
     else app.innerHTML = telaConfirmar();
     var cv = document.getElementById('prev');
     if (cv) desenhar(exemploPreview(), cv);
+    var sd = document.getElementById('f-dens');
+    if (sd) sd.addEventListener('change', function(){
+      S.dens = parseInt(sd.value, 10) || 3;
+      try { localStorage.setItem('feitoria_densidade', String(S.dens)); } catch(e){}
+      S.btMsg = 'Densidade ' + S.dens + ' — imprima um teste para conferir.';
+      render();
+    });
+
     var b = document.getElementById('busca');
     if (b) b.addEventListener('input', function(){
       S.busca = b.value; var p = b.selectionStart; render();
