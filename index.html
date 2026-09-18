@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Etiquetas — Feitoria</title>
 <script src="https://cdn.jsdelivr.net/npm/niimbot-web-bluetooth@1.3.5/src/niimbot.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   :root{--ground:#F2F4F1;--surface:#fff;--ink:#131A16;--muted:#5C6660;--accent:#1F6F4A;
         --line:#D7DED8;--amber:#A8730C;--amber-bg:#F7EDD6;--red:#9A2B1E;--red-bg:#FBEAE6;--ok-bg:#E2F0E8}
@@ -49,7 +50,37 @@
   .msg.e{background:var(--red-bg);color:var(--red)}
   .msg.s{background:var(--ok-bg);color:var(--accent)}
   .msg.w{background:var(--amber-bg);color:var(--amber)}
-  #prev{display:block;margin:0 auto;width:250px;height:150px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  #prev{display:block;margin:0 auto;width:250px;height:154px;border:1px solid var(--line);border-radius:6px;background:#fff}
+
+  /* navegação entre etiquetar e validades */
+  .nav{display:flex;gap:8px;margin:0 0 16px}
+  .nav button{flex:1;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:inherit;font-size:15px;font-weight:600}
+  .nav button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* lista de validades */
+  .val{display:grid;gap:9px}
+  .vitem{display:grid;grid-template-columns:5px 1fr auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 14px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;width:100%}
+  .vitem .b{width:5px;height:100%;min-height:38px;border-radius:3px;background:var(--line)}
+  .vitem.venc .b{background:var(--red)}
+  .vitem.hoje .b{background:var(--amber)}
+  .vitem.ok .b{background:var(--accent)}
+  .vitem .n{font-weight:600;line-height:1.2}
+  .vitem .n em{display:block;font-style:normal;font-weight:400;font-size:12.5px;color:var(--muted);margin-top:3px;letter-spacing:.04em}
+  .vitem .p{font-size:14px;font-weight:600;text-align:right;white-space:nowrap}
+  .vitem.venc .p{color:var(--red)}
+  .vitem.hoje .p{color:var(--amber)}
+
+  .campo{margin-bottom:14px}
+  .campo label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;letter-spacing:.04em}
+  .campo input,.campo select{width:100%;padding:14px;font-size:17px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
+  .dupla{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .destinos{display:grid;gap:9px;margin:14px 0}
+  .ficha{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:8px}
+  .ficha h2{font-size:19px;margin:0 0 4px}
+  .ficha dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0;font-size:14.5px}
+  .ficha dt{color:var(--muted)}
+  .ficha dd{margin:0}
+  #leitor{width:100%;max-width:340px;border-radius:12px;display:none;margin:0 auto 12px}
   #folha{display:none}
   @media print{
     @page{size:50mm 30mm;margin:0}
@@ -76,7 +107,9 @@
   var TAM_FALLBACK = { w_px:W, h_px:H, offset_y_px:0 };
 
   var S = { pin:'', sessao:null, produto:null, metodo:null, qtd:1, tela:'pin',
-            erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3 };
+            erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3,
+            itens:[], item:null, carregando:false,
+            av:{ nome:'', metodo:'refrigerado', dias:3, qtd:1 } };
 
   try { var dsalvo = parseInt(localStorage.getItem('feitoria_densidade'), 10);
         if (dsalvo >= 1 && dsalvo <= 5) S.dens = dsalvo; } catch(e){}
@@ -148,15 +181,38 @@
     x.fillText(String(dados.unidade).toUpperCase(), 14, 12);
     x.textAlign = 'right'; x.fillText(String(m.nome).toUpperCase(), W - 14, 12); x.textAlign = 'left';
     x.fillRect(14, 42, W - 28, 3);
-    x.font = 'bold 44px Arial, sans-serif';
-    var linhas = quebrar(x, dados.produto, W - 28, 2);
+
+    // QR do código individual, canto direito — é por ele que se dá baixa
+    var codigo = dados.codigo || dados.lote || '';
+    var larguraTexto = W - 28;
+    if (codigo && typeof qrcode !== 'undefined') {
+      try {
+        var qr = qrcode(0, 'M');
+        qr.addData(codigo);
+        qr.make();
+        var n = qr.getModuleCount();
+        var lado = 108, px = lado / n, x0 = W - lado - 14, y0 = 58;
+        x.fillStyle = '#fff'; x.fillRect(x0 - 4, y0 - 4, lado + 8, lado + 8);
+        x.fillStyle = '#000';
+        for (var r = 0; r < n; r++) {
+          for (var c = 0; c < n; c++) {
+            if (qr.isDark(r, c)) x.fillRect(x0 + c * px, y0 + r * px, Math.ceil(px), Math.ceil(px));
+          }
+        }
+        larguraTexto = W - 28 - lado - 16;
+      } catch (e) {}
+    }
+
+    x.font = 'bold 42px Arial, sans-serif';
+    var linhas = quebrar(x, dados.produto, larguraTexto, 2);
     var y = 56;
-    for (var i = 0; i < linhas.length; i++) { x.fillText(linhas[i], 14, y); y += 48; }
-    if (linhas.length === 1) y += 10;
-    x.font = '22px Arial, sans-serif';
-    var yy = Math.min(y, 196);
-    x.fillText('MANIP. ' + dh(dados.manipulado_em) + '   ' + String(dados.responsavel).split(' ')[0].toUpperCase(), 14, yy);
-    x.fillText('LOTE ' + dados.lote, 14, yy + 28);
+    for (var i = 0; i < linhas.length; i++) { x.fillText(linhas[i], 14, y); y += 46; }
+    if (linhas.length === 1) y += 8;
+    x.font = '21px Arial, sans-serif';
+    var yy = Math.min(y, 190);
+    x.fillText('MANIP. ' + dh(dados.manipulado_em) + '  ' + String(dados.responsavel).split(' ')[0].toUpperCase(), 14, yy);
+    x.font = 'bold 21px Arial, sans-serif';
+    x.fillText(codigo, 14, yy + 26);
     x.fillRect(0, H - 74, W, 74);
     x.fillStyle = '#fff';
     x.font = 'bold 24px Arial, sans-serif';
@@ -174,8 +230,26 @@
     return { unidade:S.sessao.unidade.nome, produto:S.produto.name, conservacao:S.metodo,
       manipulado_em:agora.toISOString(),
       validade:new Date(agora.getTime() + s.shelf_life_hours * 3600000).toISOString(),
-      responsavel:S.sessao.colaborador.nome, lote:'AO IMPRIMIR' };
+      responsavel:S.sessao.colaborador.nome, codigo:'AO-IMPRIMIR' };
   }
+
+  // ---------- helpers de validade ----------
+
+  function horasAte(iso){ return (new Date(iso).getTime() - Date.now()) / 3600000; }
+  function classeDe(h){ return h < 0 ? 'venc' : (h < 24 ? 'hoje' : 'ok'); }
+  function faltaTexto(h){
+    if (h < 0) { var a = Math.abs(h); return a < 24 ? 'venceu há ' + Math.round(a) + 'h' : 'venceu há ' + Math.floor(a/24) + 'd'; }
+    if (h < 1)  return 'menos de 1h';
+    if (h < 24) return 'em ' + Math.round(h) + 'h';
+    return 'em ' + Math.floor(h / 24) + 'd';
+  }
+
+  var DESTINOS = [
+    { v:'consumido', t:'Consumido',        d:'saiu pela venda, sem perda' },
+    { v:'sobra',     t:'Sobra',            d:'voltou ao estoque' },
+    { v:'vencido',   t:'Descarte por validade', d:'passou do prazo' },
+    { v:'quebra',    t:'Quebra ou erro',   d:'caiu, queimou, preparo errado' }
+  ];
 
   function temDriver(){ return typeof window.Niimbot !== 'undefined'; }
   function acharNoRegistro(tipo, chave){
@@ -227,14 +301,24 @@
       .catch(function(e){ S.btMsg = 'Não conectou: ' + (e && e.message ? e.message : e); render(); });
   }
 
-  function imprimir(etiqueta, quantidade){
-    var png = desenhar(etiqueta).toDataURL('image/png');
+  // Cada etiqueta é distinta (código próprio), então não dá para usar "cópias".
+  function imprimir(etiquetas){
+    if (!Array.isArray(etiquetas)) etiquetas = [etiquetas];
+    var pngs = etiquetas.map(function(e){ return desenhar(e).toDataURL('image/png'); });
+
     if (S.bt && temDriver()) {
-      return window.Niimbot.printImage(png, { model:modelo(), size:tamanho(), copies:quantidade });
+      if (window.Niimbot.printBatch && pngs.length > 1) {
+        return window.Niimbot.printBatch(pngs, { model:modelo(), size:tamanho() });
+      }
+      return pngs.reduce(function(fila, png){
+        return fila.then(function(){
+          return window.Niimbot.printImage(png, { model:modelo(), size:tamanho(), copies:1 });
+        });
+      }, Promise.resolve());
     }
-    var html = '';
-    for (var i = 0; i < quantidade; i++) html += '<img src="' + png + '">';
-    document.getElementById('folha').innerHTML = html;
+
+    document.getElementById('folha').innerHTML =
+      pngs.map(function(p){ return '<img src="' + p + '">'; }).join('');
     return new Promise(function(ok){ setTimeout(function(){ window.print(); ok(); }, 120); });
   }
 
@@ -294,9 +378,12 @@
       corpo += '</div>';
     });
     if (!lista.length) corpo = '<p class="sub">Nenhum produto encontrado.</p>';
-    return cabecalho() + (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+    return cabecalho() + navegacao('etiquetar') +
+      (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
       '<h1>O que você vai etiquetar?</h1>' +
-      '<input class="search" id="busca" placeholder="Buscar produto" value="' + esc(S.busca) + '" autocomplete="off">' + corpo;
+      '<input class="search" id="busca" placeholder="Buscar produto" value="' + esc(S.busca) + '" autocomplete="off">' +
+      corpo +
+      '<button class="big ghost" data-a="ir" data-t="avulso">Item fora da lista</button>';
   }
 
   function telaMetodo(){
@@ -321,12 +408,124 @@
       '<button class="big ghost" data-a="voltar">Voltar</button>';
   }
 
+  function navegacao(atual){
+    return '<div class="nav">' +
+      '<button data-a="ir" data-t="produto"' + (atual === 'etiquetar' ? ' class="on"' : '') + '>Etiquetar</button>' +
+      '<button data-a="ir" data-t="validades"' + (atual === 'validades' ? ' class="on"' : '') + '>Validades</button>' +
+      '</div>';
+  }
+
+  function telaValidades(){
+    var corpo;
+    if (S.carregando) corpo = '<p class="sub">Carregando…</p>';
+    else if (!S.itens.length) corpo = '<p class="sub">Nenhum item etiquetado em circulação.</p>';
+    else {
+      var venc = 0, hoje = 0;
+      S.itens.forEach(function(i){ var h = horasAte(i.expires_at); if (h < 0) venc++; else if (h < 24) hoje++; });
+      corpo = '<p class="sub">' + venc + ' vencido(s) · ' + hoje + ' vencem em 24h · ' +
+              S.itens.length + ' em circulação</p><div class="val">' +
+        S.itens.map(function(i){
+          var h = horasAte(i.expires_at);
+          return '<button class="vitem ' + classeDe(h) + '" data-a="abrir" data-c="' + esc(i.code) + '">' +
+            '<div class="b"></div>' +
+            '<div class="n">' + esc(i.product_name) +
+              '<em>' + esc(i.code) + ' · ' + esc((METODOS[i.storage_method]||{}).nome || i.storage_method) + '</em></div>' +
+            '<div class="p">' + faltaTexto(h) + '<br><span style="font-weight:400;color:var(--muted);font-size:12px">' +
+              dh(i.expires_at) + '</span></div></button>';
+        }).join('') + '</div>';
+    }
+
+    return cabecalho() + navegacao('validades') +
+      (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      '<h1>O que está na geladeira</h1>' +
+      '<div class="campo"><div class="dupla">' +
+        '<button class="btn big" style="margin:0" data-a="scan">Ler QR da etiqueta</button>' +
+        '<input id="cod" placeholder="ou digite o código" autocomplete="off" style="width:100%;padding:14px;font-size:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">' +
+      '</div></div>' +
+      '<video id="leitor" playsinline></video>' +
+      corpo;
+  }
+
+  function telaItem(){
+    var i = S.item;
+    var h = horasAte(i.expires_at);
+    var m = METODOS[i.storage_method] || { nome:i.storage_method };
+    var prazos = ((i.label_products || {}).label_shelf_lives || [])
+      .filter(function(s){ return s.storage_method !== i.storage_method; });
+
+    return cabecalho() +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      '<div class="ficha"><h2>' + esc(i.product_name) + '</h2>' +
+        '<span class="sub" style="margin:0">' + esc(i.code) + '</span>' +
+        '<dl>' +
+          '<dt>Conservação</dt><dd>' + esc(m.nome) + '</dd>' +
+          '<dt>Manipulado</dt><dd>' + dh(i.manipulated_at) + ' · ' + esc(String(i.employee_name).split(' ')[0]) + '</dd>' +
+          '<dt>Validade</dt><dd><b>' + dh(i.expires_at) + '</b> (' + faltaTexto(h) + ')</dd>' +
+          '<dt>Situação</dt><dd>' + (i.status !== 'ativo' ? esc(i.status) : (h < 0 ? 'vencido' : 'ativo')) + '</dd>' +
+        '</dl></div>' +
+
+      (i.status !== 'ativo'
+        ? '<div class="msg w">Esta etiqueta já saiu de circulação.</div>'
+        : '<h1 style="font-size:18px;margin:22px 0 4px">Dar baixa</h1>' +
+          '<p class="sub">O que aconteceu com este item?</p>' +
+          '<div class="destinos">' +
+            DESTINOS.map(function(d){
+              return '<button class="card" data-a="baixa" data-c="' + esc(i.code) + '" data-v="' + d.v + '">' +
+                d.t + '<small>' + d.d + '</small></button>';
+            }).join('') +
+          '</div>' +
+          (h >= 0 && prazos.length
+            ? '<h1 style="font-size:18px;margin:22px 0 4px">Revalidar</h1>' +
+              '<p class="sub">Mudou de conservação? Gera uma etiqueta nova, ligada a esta.</p>' +
+              '<div class="destinos">' +
+                prazos.map(function(s){
+                  var mm = METODOS[s.storage_method] || { nome:s.storage_method };
+                  return '<button class="card" data-a="reval" data-c="' + esc(i.code) + '" data-v="' + esc(s.storage_method) + '">' +
+                    esc(mm.nome) + ' — ' + prazoTexto(s.shelf_life_hours) +
+                    '<small>validade recomeça agora</small></button>';
+                }).join('') +
+              '</div>'
+            : '')) +
+
+      '<button class="big ghost" data-a="ir" data-t="validades">Voltar</button>';
+  }
+
+  function telaAvulso(){
+    var opts = ['ambiente','refrigerado','congelado','descongelado'].map(function(k){
+      return '<option value="' + k + '"' + (S.av.metodo === k ? ' selected' : '') + '>' + METODOS[k].nome + '</option>';
+    }).join('');
+
+    return cabecalho() +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      '<h1>Item fora da lista</h1>' +
+      '<p class="sub">Use quando o preparo ainda não está cadastrado. Ele entra marcado como avulso e aparece na fila para regularizar na Takeat.</p>' +
+      '<div class="campo"><label>Nome do item</label>' +
+        '<input id="av-nome" value="' + esc(S.av.nome) + '" placeholder="Ex: Molho de pimenta da casa" autocomplete="off"></div>' +
+      '<div class="campo dupla">' +
+        '<div><label>Como vai guardar</label><select id="av-metodo">' + opts + '</select></div>' +
+        '<div><label>Validade (dias)</label><input id="av-dias" type="number" min="1" max="180" value="' + S.av.dias + '"></div>' +
+      '</div>' +
+      '<div class="campo"><label>Quantas etiquetas</label>' +
+        '<input id="av-qtd" type="number" min="1" max="20" value="' + S.av.qtd + '"></div>' +
+      '<button class="big" data-a="salvar-avulso">Gerar e imprimir</button>' +
+      '<button class="big ghost" data-a="ir" data-t="produto">Voltar</button>';
+  }
+
   function render(){
     if (!TOKEN) { app.innerHTML = '<div class="msg e">Link inválido. Peça o link da sua unidade à gerência.</div>'; return; }
     if (S.tela === 'pin') app.innerHTML = telaPin();
     else if (S.tela === 'produto') app.innerHTML = telaProduto();
     else if (S.tela === 'metodo') app.innerHTML = telaMetodo();
+    else if (S.tela === 'validades') app.innerHTML = telaValidades();
+    else if (S.tela === 'item') app.innerHTML = telaItem();
+    else if (S.tela === 'avulso') app.innerHTML = telaAvulso();
     else app.innerHTML = telaConfirmar();
+
+    var cod = document.getElementById('cod');
+    if (cod) cod.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && cod.value.trim()) abrirItem(cod.value.trim());
+    });
     var cv = document.getElementById('prev');
     if (cv) desenhar(exemploPreview(), cv);
     var sd = document.getElementById('f-dens');
@@ -342,6 +541,51 @@
       S.busca = b.value; var p = b.selectionStart; render();
       var n = document.getElementById('busca'); if (n) { n.focus(); n.setSelectionRange(p, p); }
     });
+  }
+
+  function carregarItens(){
+    S.carregando = true; S.erro = ''; render();
+    return chamar({ action:'itens', unit_token:TOKEN, pin:S.pin })
+      .then(function(j){ S.itens = j.itens || []; })
+      .catch(function(e){ S.erro = e.message; })
+      .then(function(){ S.carregando = false; toque(); render(); });
+  }
+
+  function abrirItem(codigo){
+    S.erro = ''; S.aviso = '';
+    return chamar({ action:'item', unit_token:TOKEN, pin:S.pin, code:codigo })
+      .then(function(j){ S.item = j.item; S.tela = 'item'; toque(); render(); })
+      .catch(function(e){ S.erro = e.message; render(); });
+  }
+
+  // Leitura do QR pela câmera. Só existe no Chrome Android; sem ele, digita-se o código.
+  function escanear(botao){
+    var video = document.getElementById('leitor');
+    if (!('BarcodeDetector' in window) || !video) {
+      S.erro = 'Este aparelho não lê QR pela câmera. Digite o código da etiqueta.';
+      return render();
+    }
+    botao.disabled = true; botao.textContent = 'Abrindo câmera…';
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
+      .then(function(stream){
+        video.style.display = 'block';
+        video.srcObject = stream; video.play();
+        var det = new window.BarcodeDetector({ formats:['qr_code'] });
+        var parar = function(){
+          stream.getTracks().forEach(function(t){ t.stop(); });
+          video.style.display = 'none';
+        };
+        var tick = function(){
+          if (!stream.active) return;
+          det.detect(video).then(function(r){
+            if (r && r.length) { parar(); abrirItem(r[0].rawValue); }
+            else setTimeout(tick, 350);
+          }).catch(function(){ setTimeout(tick, 500); });
+        };
+        setTimeout(tick, 600);
+        setTimeout(function(){ if (stream.active) { parar(); render(); } }, 45000);
+      })
+      .catch(function(e){ S.erro = 'Não consegui abrir a câmera: ' + e.message; render(); });
   }
 
   document.addEventListener('click', function(ev){
@@ -368,13 +612,71 @@
     if (a === 'menos') { if (S.qtd > 1) S.qtd--; return render(); }
     if (a === 'mais')  { if (S.qtd < 20) S.qtd++; return render(); }
     if (a === 'conectar') return conectar(el);
+    if (a === 'scan') return escanear(el);
+
+    if (a === 'ir') {
+      var destino = el.getAttribute('data-t');
+      S.erro = ''; S.aviso = '';
+      if (destino === 'validades') { S.tela = 'validades'; return carregarItens(); }
+      S.tela = destino; toque(); return render();
+    }
+
+    if (a === 'abrir') return abrirItem(el.getAttribute('data-c'));
+
+    if (a === 'baixa') {
+      el.disabled = true;
+      chamar({ action:'baixa', unit_token:TOKEN, pin:S.pin,
+               code:el.getAttribute('data-c'), outcome:el.getAttribute('data-v') })
+        .then(function(j){
+          S.aviso = 'Baixa registrada: ' + j.codigo + ' — ' + j.destino + '.';
+          S.item = null; S.tela = 'validades'; return carregarItens();
+        })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+
+    if (a === 'reval') {
+      el.disabled = true; el.textContent = 'Gerando…';
+      chamar({ action:'revalidar', unit_token:TOKEN, pin:S.pin,
+               code:el.getAttribute('data-c'), storage_method:el.getAttribute('data-v') })
+        .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
+        .then(function(j){
+          S.aviso = 'Revalidado: ' + j.origem + ' virou ' + j.etiqueta.codigo + '. Cole a etiqueta nova e tire a antiga.';
+          S.item = null; S.tela = 'validades'; return carregarItens();
+        })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+
+    if (a === 'salvar-avulso') {
+      S.av.nome = (document.getElementById('av-nome').value || '').trim();
+      S.av.metodo = document.getElementById('av-metodo').value;
+      S.av.dias = parseInt(document.getElementById('av-dias').value, 10) || 1;
+      S.av.qtd = parseInt(document.getElementById('av-qtd').value, 10) || 1;
+
+      if (S.av.nome.length < 2) { S.erro = 'Informe o nome do item.'; return render(); }
+      el.disabled = true; el.textContent = 'Gerando…';
+      chamar({ action:'avulso', unit_token:TOKEN, pin:S.pin, nome:S.av.nome,
+               storage_method:S.av.metodo, horas:S.av.dias * 24, quantity:S.av.qtd })
+        .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
+        .then(function(j){
+          S.aviso = j.etiquetas.length + ' etiqueta(s) — ' + j.etiqueta.produto + ' (avulso, a regularizar na Takeat).';
+          S.av = { nome:'', metodo:'refrigerado', dias:3, qtd:1 };
+          S.tela = 'produto'; S.erro = '';
+          // recarrega a sessão para o item novo aparecer na lista
+          return chamar({ action:'session', unit_token:TOKEN, pin:S.pin })
+            .then(function(s){ S.sessao = s; toque(); render(); });
+        })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
 
     if (a === 'teste') {
       el.disabled = true; el.textContent = '...';
-      imprimir({ unidade:S.sessao ? S.sessao.unidade.nome : 'FEITORIA', produto:'Teste de impressão',
+      imprimir([{ unidade:S.sessao ? S.sessao.unidade.nome : 'FEITORIA', produto:'Teste de impressão',
         conservacao:'refrigerado', manipulado_em:new Date().toISOString(),
         validade:new Date(Date.now() + 259200000).toISOString(),
-        responsavel:'Teste', lote:'TESTE-000' }, 1)
+        responsavel:'Teste', codigo:'TESTE-000-1' }])
         .then(function(){ el.disabled = false; el.textContent = 'Teste'; })
         .catch(function(e){ S.btMsg = 'Falhou: ' + (e && e.message ? e.message : e); render(); });
       return;
@@ -398,10 +700,11 @@
       el.disabled = true; el.textContent = 'Imprimindo...';
       chamar({ action:'print', unit_token:TOKEN, pin:S.pin, product_id:S.produto.id,
                storage_method:S.metodo, quantity:qtd })
-        .then(function(j){ return imprimir(j.etiqueta, qtd).then(function(){ return j; }); })
+        .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
         .then(function(j){
           S.aviso = qtd + (qtd === 1 ? ' etiqueta' : ' etiquetas') + ' — ' + j.etiqueta.produto +
-                    ' · lote ' + j.etiqueta.lote;
+                    ' · ' + j.etiquetas[0].codigo +
+                    (qtd > 1 ? ' até ' + j.etiquetas[qtd - 1].codigo : '');
           S.tela = 'produto'; S.produto = null; S.metodo = null; S.busca = ''; S.erro = '';
           toque(); render();
           setTimeout(function(){ S.aviso = ''; if (S.tela === 'produto') render(); }, 7000);

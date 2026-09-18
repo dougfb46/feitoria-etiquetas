@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Validades — Feitoria</title>
+<style>
+  :root{
+    --fundo:#0C110E; --caixa:#151D18; --linha:#26312B;
+    --texto:#ECF2EE; --fraco:#8FA096;
+    --ok:#4FBF88; --alerta:#E8A33D; --grave:#E8624A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--fundo);color:var(--texto);
+       font:400 1.15rem/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;
+       overflow:hidden;padding:2.2vh 2.4vw}
+
+  header{display:flex;justify-content:space-between;align-items:flex-end;
+         border-bottom:2px solid var(--linha);padding-bottom:1.4vh;margin-bottom:2vh}
+  h1{font-size:2.4vw;font-weight:600;letter-spacing:-.01em}
+  h1 small{display:block;font-size:1.05vw;font-weight:400;color:var(--fraco);
+           letter-spacing:.12em;text-transform:uppercase;margin-bottom:.4vh}
+  .relogio{text-align:right;font-variant-numeric:tabular-nums}
+  .relogio b{display:block;font-size:2.6vw;font-weight:600;line-height:1}
+  .relogio span{font-size:1vw;color:var(--fraco)}
+
+  .contadores{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2vw;margin-bottom:2.2vh}
+  .cont{background:var(--caixa);border-radius:.8vw;padding:1.6vh 1.4vw;
+        border-left:.45vw solid var(--linha)}
+  .cont b{display:block;font-size:3.4vw;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .cont span{font-size:1vw;color:var(--fraco);letter-spacing:.1em;text-transform:uppercase}
+  .cont.g{border-left-color:var(--grave)}   .cont.g b{color:var(--grave)}
+  .cont.a{border-left-color:var(--alerta)}  .cont.a b{color:var(--alerta)}
+  .cont.o{border-left-color:var(--ok)}      .cont.o b{color:var(--ok)}
+
+  .lista{display:grid;gap:.9vh;align-content:start;
+         height:calc(100vh - 34vh);overflow:hidden}
+  .item{display:grid;grid-template-columns:.5vw 1fr auto auto;gap:1.2vw;align-items:center;
+        background:var(--caixa);border-radius:.6vw;padding:1.3vh 1.3vw}
+  .barra{width:.5vw;height:100%;min-height:4.2vh;border-radius:.3vw;background:var(--fraco)}
+  .item.vencido  .barra{background:var(--grave)}
+  .item.hoje     .barra{background:var(--alerta)}
+  .item.proximo  .barra{background:var(--ok)}
+  .nome{font-size:1.85vw;font-weight:600;line-height:1.15;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nome em{display:block;font-style:normal;font-size:.95vw;font-weight:400;color:var(--fraco);
+           letter-spacing:.06em;text-transform:uppercase;margin-top:.3vh}
+  .prazo{font-size:1.7vw;font-weight:700;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .item.vencido .prazo{color:var(--grave)}
+  .item.hoje    .prazo{color:var(--alerta)}
+  .quando{font-size:1.15vw;color:var(--fraco);text-align:right;white-space:nowrap;
+          font-variant-numeric:tabular-nums;min-width:9vw}
+
+  .vazio{display:flex;flex-direction:column;align-items:center;justify-content:center;
+         height:50vh;color:var(--fraco);text-align:center}
+  .vazio b{font-size:3vw;color:var(--ok);font-weight:600;margin-bottom:1vh}
+  .vazio span{font-size:1.3vw}
+
+  footer{position:fixed;left:2.4vw;right:2.4vw;bottom:1.4vh;display:flex;
+         justify-content:space-between;font-size:.95vw;color:var(--fraco)}
+  .pisca{animation:p 2.5s ease-in-out infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.45}}
+  @media (prefers-reduced-motion:reduce){.pisca{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1><small id="uni">Feitoria da Cerveja</small>Validades na cozinha</h1>
+  <div class="relogio"><b id="hora">--:--</b><span id="data">—</span></div>
+</header>
+
+<div class="contadores">
+  <div class="cont g"><b id="c-venc">0</b><span>Vencidos</span></div>
+  <div class="cont a"><b id="c-hoje">0</b><span>Vencem em 24h</span></div>
+  <div class="cont o"><b id="c-prox">0</b><span>No prazo</span></div>
+</div>
+
+<div class="lista" id="lista"></div>
+
+<footer>
+  <span id="rodape">Carregando…</span>
+  <span id="status">Feitoria · controle de validade</span>
+</footer>
+
+<script>
+(function(){
+  var API = 'https://kujelbcbrcmkitzyswbh.supabase.co/functions/v1/painel';
+  var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1amVsYmNicmNta2l0enlzd2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NDg0MzAsImV4cCI6MjEwNDIyNDQzMH0.uDwckXtywDBZGU_i4J8S9BdO2fUtRwXCOaLJbSiWzdQ';
+  var q = new URLSearchParams(location.search);
+  var TOKEN = q.get('u') || '';
+  var HORIZONTE = q.get('h') || '48';
+  var MAX = 12;               // quantos cabem na tela sem cortar
+  var dados = null, pagina = 0;
+
+  var METODO = { ambiente:'Ambiente', refrigerado:'Refrigerado',
+                 congelado:'Congelado', descongelado:'Descongelado' };
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+
+  function relogio(){
+    var d = new Date();
+    document.getElementById('hora').textContent =
+      d.toLocaleTimeString('pt-BR', { timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit' });
+    document.getElementById('data').textContent =
+      d.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', weekday:'long', day:'2-digit', month:'long' });
+  }
+
+  function faltaTexto(h){
+    if (h < 0) {
+      var a = Math.abs(h);
+      if (a < 24) return 'venceu há ' + Math.round(a) + 'h';
+      return 'venceu há ' + Math.floor(a / 24) + 'd';
+    }
+    if (h < 1)  return 'menos de 1h';
+    if (h < 24) return 'em ' + Math.round(h) + 'h';
+    return 'em ' + Math.floor(h / 24) + 'd';
+  }
+
+  function hora(iso){
+    return new Date(iso).toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo',
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
+  }
+
+  function desenhar(){
+    if (!dados) return;
+    document.getElementById('uni').textContent = dados.unidade;
+    document.getElementById('c-venc').textContent = dados.contagem.vencidos;
+    document.getElementById('c-hoje').textContent = dados.contagem.vencem_hoje;
+    document.getElementById('c-prox').textContent = dados.total_ativos;
+
+    var lista = document.getElementById('lista');
+    var itens = dados.itens || [];
+
+    if (!itens.length) {
+      lista.innerHTML = '<div class="vazio"><b>Tudo em dia</b>' +
+        '<span>Nenhum item vence nas próximas ' + esc(dados.horizonte_horas) + ' horas.</span></div>';
+      document.getElementById('rodape').textContent =
+        dados.total_ativos + ' itens etiquetados em circulação';
+      return;
+    }
+
+    var paginas = Math.ceil(itens.length / MAX);
+    if (pagina >= paginas) pagina = 0;
+    var fatia = itens.slice(pagina * MAX, pagina * MAX + MAX);
+
+    lista.innerHTML = fatia.map(function(i){
+      var cls = i.situacao === 'vencido' ? 'vencido' : (i.situacao === 'vence_hoje' ? 'hoje' : 'proximo');
+      var pisca = i.situacao === 'vencido' ? ' pisca' : '';
+      return '<div class="item ' + cls + '">' +
+        '<div class="barra' + pisca + '"></div>' +
+        '<div class="nome">' + esc(i.product_name) +
+          '<em>' + esc(METODO[i.storage_method] || i.storage_method) + ' · ' + esc(i.code) +
+          ' · ' + esc(String(i.employee_name).split(' ')[0]) + '</em></div>' +
+        '<div class="prazo' + pisca + '">' + faltaTexto(i.horas_restantes) + '</div>' +
+        '<div class="quando">' + hora(i.expires_at) + '</div>' +
+      '</div>';
+    }).join('');
+
+    document.getElementById('rodape').textContent =
+      itens.length + ' item(ns) na janela de ' + dados.horizonte_horas + 'h' +
+      (paginas > 1 ? '  ·  página ' + (pagina + 1) + ' de ' + paginas : '') +
+      '  ·  ' + dados.total_ativos + ' etiquetados em circulação';
+  }
+
+  function buscar(){
+    if (!TOKEN) {
+      document.getElementById('lista').innerHTML =
+        '<div class="vazio"><b>Link incompleto</b><span>Falta o código da unidade no endereço.</span></div>';
+      return;
+    }
+    fetch(API + '?u=' + encodeURIComponent(TOKEN) + '&h=' + encodeURIComponent(HORIZONTE),
+          { headers: { 'apikey':ANON, 'Authorization':'Bearer ' + ANON } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j.error) throw new Error(j.error);
+        dados = j; desenhar();
+        document.getElementById('status').textContent =
+          'atualizado ' + new Date().toLocaleTimeString('pt-BR',
+            { timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit' });
+      })
+      .catch(function(e){
+        document.getElementById('status').textContent = 'sem conexão — ' + e.message;
+      });
+  }
+
+  relogio();  buscar();
+  setInterval(relogio, 20000);
+  setInterval(buscar, 90000);                    // dados a cada 1min30
+  setInterval(function(){ pagina++; desenhar(); }, 15000);  // rotaciona a lista
+})();
+</script>
+</body>
+</html>
