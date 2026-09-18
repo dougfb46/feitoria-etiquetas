@@ -190,13 +190,15 @@
         var qr = qrcode(0, 'M');
         qr.addData(codigo);
         qr.make();
-        var n = qr.getModuleCount();
-        var lado = 108, px = lado / n, x0 = W - lado - 14, y0 = 58;
+        var mods = qr.getModuleCount();
+        var lado = 108, px = lado / mods, x0 = W - lado - 14, y0 = 58;
         x.fillStyle = '#fff'; x.fillRect(x0 - 4, y0 - 4, lado + 8, lado + 8);
         x.fillStyle = '#000';
-        for (var r = 0; r < n; r++) {
-          for (var c = 0; c < n; c++) {
-            if (qr.isDark(r, c)) x.fillRect(x0 + c * px, y0 + r * px, Math.ceil(px), Math.ceil(px));
+        for (var lin = 0; lin < mods; lin++) {
+          for (var col = 0; col < mods; col++) {
+            if (qr.isDark(lin, col)) {
+              x.fillRect(x0 + col * px, y0 + lin * px, Math.ceil(px), Math.ceil(px));
+            }
           }
         }
         larguraTexto = W - 28 - lado - 16;
