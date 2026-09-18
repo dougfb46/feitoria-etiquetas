@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Validades por tipo</title>
+<style>
+  :root{
+    --ground:#F2F4F1; --surface:#fff; --ink:#131A16; --muted:#5C6660;
+    --accent:#1F6F4A; --line:#D7DED8; --amber:#A8730C; --red:#9A2B1E;
+    --gelo:#2D6E9E; --frio:#1F6F4A; --seco:#A8730C;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ground);color:var(--ink);
+       font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
+
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+         border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:20px;flex-wrap:wrap}
+  h1{font-size:23px;font-weight:700;letter-spacing:-.2px}
+  header small{display:block;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;
+               color:var(--muted);margin-bottom:4px}
+  .quando{font-size:13px;color:var(--muted);text-align:right}
+
+  .resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+  .rcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+         border-left:4px solid var(--line)}
+  .rcard b{display:block;font-size:30px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+  .rcard span{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+  .rcard.g{border-left-color:var(--red)}     .rcard.g b{color:var(--red)}
+  .rcard.a{border-left-color:var(--amber)}   .rcard.a b{color:var(--amber)}
+  .rcard.o{border-left-color:var(--accent)}  .rcard.o b{color:var(--accent)}
+
+  .filtros{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .filtros button{padding:8px 15px;border-radius:99px;border:1px solid var(--line);
+                  background:var(--surface);color:var(--muted);font:inherit;font-size:14px;cursor:pointer}
+  .filtros button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+
+  .colunas{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px;align-items:start}
+  .col{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .col h2{font-size:16px;padding:14px 16px 4px;display:flex;justify-content:space-between;align-items:baseline}
+  .col h2 i{font-style:normal;font-size:13px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+  .escala{padding:0 16px 12px;font-size:11.5px;color:var(--muted);letter-spacing:.4px;
+          border-bottom:1px solid var(--line)}
+  .col.congelado h2{color:var(--gelo)}
+  .col.refrigerado h2, .col.descongelado h2{color:var(--frio)}
+  .col.ambiente h2{color:var(--seco)}
+
+  .faixa{padding:10px 16px 4px;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+  .item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:9px 16px 11px;
+        border-bottom:1px solid var(--line)}
+  .item:last-child{border-bottom:none}
+  .nome{font-weight:600;line-height:1.2}
+  .nome em{font-style:normal;font-weight:700;color:var(--accent)}
+  .meta{grid-column:1;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .falta{grid-row:1;grid-column:2;text-align:right;font-weight:700;font-size:14px;white-space:nowrap;
+         font-variant-numeric:tabular-nums}
+  .barra{grid-column:1/-1;height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:5px}
+  .barra i{display:block;height:100%;border-radius:3px}
+  .v-venc .falta{color:var(--red)}   .v-venc .barra i{background:var(--red)}
+  .v-crit .falta{color:var(--red)}   .v-crit .barra i{background:var(--red)}
+  .v-alerta .falta{color:var(--amber)} .v-alerta .barra i{background:var(--amber)}
+  .v-ok .falta{color:var(--accent)}  .v-ok .barra i{background:var(--accent)}
+  .pct{font-variant-numeric:tabular-nums}
+
+  .vazio{padding:16px;color:var(--muted);font-size:14px}
+  .aviso{background:#FBEAE6;color:var(--red);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:15px}
+  footer{margin-top:26px;font-size:12.5px;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body><div class="wrap" id="app">Carregando…</div>
+<script>
+(function(){
+  var API = 'https://kujelbcbrcmkitzyswbh.supabase.co/functions/v1/painel';
+  var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1amVsYmNicmNta2l0enlzd2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NDg0MzAsImV4cCI6MjEwNDIyNDQzMH0.uDwckXtywDBZGU_i4J8S9BdO2fUtRwXCOaLJbSiWzdQ';
+  var TOKEN = new URLSearchParams(location.search).get('u') || '';
+  var app = document.getElementById('app');
+  var dados = null, filtro = 'atencao';
+
+  // A régua muda por método: 24h num resfriado é rotina, num congelado é esquecimento.
+  var METODOS = {
+    refrigerado:  { nome:'Refrigerado',  escala:'12h · 24h · 48h · 72h',
+                    faixas:{ f1:'Até 12 horas', f2:'12 a 24 horas', f3:'1 a 2 dias', f4:'2 a 3 dias', ok:'Acima de 3 dias' } },
+    descongelado: { nome:'Descongelado', escala:'12h · 24h · 48h · 72h',
+                    faixas:{ f1:'Até 12 horas', f2:'12 a 24 horas', f3:'1 a 2 dias', f4:'2 a 3 dias', ok:'Acima de 3 dias' } },
+    ambiente:     { nome:'Temp. ambiente', escala:'24h · 3 dias · 7 dias · 15 dias',
+                    faixas:{ f1:'Até 24 horas', f2:'1 a 3 dias', f3:'3 a 7 dias', f4:'7 a 15 dias', ok:'Acima de 15 dias' } },
+    congelado:    { nome:'Congelado',    escala:'7 dias · 15 dias · 30 dias',
+                    faixas:{ f1:'Crítico', f2:'Até 7 dias', f3:'7 a 15 dias', f4:'15 a 30 dias', ok:'Acima de 30 dias' } }
+  };
+  var ORDEM_FAIXA = ['vencido','f1','f2','f3','f4','ok'];
+  var ORDEM_METODO = ['refrigerado','descongelado','ambiente','congelado'];
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+
+  function falta(h){
+    if (h <= 0) return 'vencido';
+    if (h < 1)  return 'menos de 1h';
+    if (h < 48) return Math.round(h) + 'h';
+    return Math.floor(h / 24) + ' dias';
+  }
+  function dh(iso){
+    return new Date(iso).toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo',
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
+  }
+  function classe(faixa){
+    if (faixa === 'vencido') return 'v-venc';
+    if (faixa === 'f1') return 'v-crit';
+    if (faixa === 'f2' || faixa === 'f3') return 'v-alerta';
+    return 'v-ok';
+  }
+
+  function coluna(metodo, itens){
+    var cfg = METODOS[metodo] || { nome:metodo, escala:'', faixas:{} };
+    var visiveis = itens.filter(function(i){ return filtro === 'tudo' || i.faixa !== 'ok'; });
+
+    var corpo = '';
+    ORDEM_FAIXA.forEach(function(f){
+      var doGrupo = visiveis.filter(function(i){ return i.faixa === f; });
+      if (!doGrupo.length) return;
+      var titulo = f === 'vencido' ? 'Vencidos' : (cfg.faixas[f] || f);
+      corpo += '<div class="faixa">' + esc(titulo) + ' · ' + doGrupo.length + '</div>';
+      doGrupo.forEach(function(i){
+        var pct = Math.max(0, Math.min(100, Number(i.vida_restante_pct) || 0));
+        corpo += '<div class="item ' + classe(i.faixa) + '">' +
+          '<div class="nome">' + esc(i.product_name) +
+            (i.medida ? ' <em>' + esc(i.medida) + '</em>' : '') + '</div>' +
+          '<div class="falta">' + falta(Number(i.horas_restantes)) + '</div>' +
+          '<div class="meta">' + esc(i.code) + ' · vence ' + dh(i.expires_at) +
+            ' · <span class="pct">' + pct.toFixed(0) + '% de vida</span></div>' +
+          '<div class="barra"><i style="width:' + pct + '%"></i></div>' +
+        '</div>';
+      });
+    });
+
+    if (!corpo) corpo = '<div class="vazio">' +
+      (filtro === 'tudo' ? 'Nada etiquetado neste método.' : 'Nada pedindo atenção aqui.') + '</div>';
+
+    return '<div class="col ' + metodo + '"><h2>' + esc(cfg.nome) +
+      '<i>' + itens.length + ' em circulação</i></h2>' +
+      '<div class="escala">Régua deste método: ' + esc(cfg.escala) + '</div>' + corpo + '</div>';
+  }
+
+  function desenhar(){
+    if (!dados) return;
+    var todos = (dados.todos || []).filter(function(i){ return i.faixa !== null; });
+
+    var porMetodo = {};
+    todos.forEach(function(i){
+      (porMetodo[i.storage_method] = porMetodo[i.storage_method] || []).push(i);
+    });
+
+    var vencidos = todos.filter(function(i){ return i.faixa === 'vencido'; }).length;
+    var criticos = todos.filter(function(i){ return i.faixa === 'f1' || i.faixa === 'f2'; }).length;
+
+    var colunas = ORDEM_METODO.filter(function(m){ return porMetodo[m] && porMetodo[m].length; })
+      .map(function(m){ return coluna(m, porMetodo[m]); }).join('');
+    Object.keys(porMetodo).forEach(function(m){
+      if (ORDEM_METODO.indexOf(m) < 0) colunas += coluna(m, porMetodo[m]);
+    });
+
+    app.innerHTML =
+      '<header><div><small>' + esc(dados.unidade) + '</small><h1>Validades por tipo</h1></div>' +
+      '<div class="quando">atualizado ' + dh(dados.gerado_em) + '<br>atualiza sozinho a cada 2 min</div></header>' +
+
+      (vencidos ? '<div class="aviso"><b>' + vencidos + ' item(ns) vencido(s)</b> — precisam sair da geladeira e receber baixa como descarte.</div>' : '') +
+
+      '<div class="resumo">' +
+        '<div class="rcard g"><b>' + vencidos + '</b><span>Vencidos</span></div>' +
+        '<div class="rcard a"><b>' + criticos + '</b><span>Na faixa crítica</span></div>' +
+        '<div class="rcard o"><b>' + todos.length + '</b><span>Etiquetados em circulação</span></div>' +
+      '</div>' +
+
+      '<div class="filtros">' +
+        '<button data-f="atencao"' + (filtro === 'atencao' ? ' class="on"' : '') + '>Só o que pede atenção</button>' +
+        '<button data-f="tudo"' + (filtro === 'tudo' ? ' class="on"' : '') + '>Mostrar tudo</button>' +
+      '</div>' +
+
+      (colunas ? '<div class="colunas">' + colunas + '</div>'
+               : '<p class="vazio">Nenhum item etiquetado em circulação.</p>') +
+
+      '<footer>A régua é diferente por método de propósito: avisar que um congelado vence em 15 dias é rotina, ' +
+      'e um resfriado nunca chega lá. A barra mostra quanto sobrou da vida do item — ' +
+      'dois itens que vencem amanhã podem estar em 33% e em 1%, e são situações diferentes.</footer>';
+  }
+
+  function buscar(){
+    if (!TOKEN) { app.innerHTML = '<div class="aviso">Falta o código da unidade no endereço.</div>'; return; }
+    fetch(API + '?u=' + encodeURIComponent(TOKEN), { headers:{ 'apikey':ANON, 'Authorization':'Bearer ' + ANON } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (j.error) throw new Error(j.error); dados = j; desenhar(); })
+      .catch(function(e){ app.innerHTML = '<div class="aviso">Não consegui carregar: ' + esc(e.message) + '</div>'; });
+  }
+
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-f]');
+    if (!b) return;
+    filtro = b.getAttribute('data-f');
+    desenhar();
+  });
+
+  buscar();
+  setInterval(buscar, 120000);
+})();
+</script>
+</body>
+</html>

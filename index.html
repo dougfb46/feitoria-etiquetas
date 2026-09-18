@@ -103,12 +103,14 @@
   var EXPIRA = 15 * 60 * 1000;
 
   var W = 576, H = 354;
+  var EMPRESA_CURTA = 'FEITORIA PUB CAFE MOGI';
+  var EMPRESA_LINHA = 'FEITORIA PUB CAFE MOGI LTDA - ME  ·  CNPJ 60.006.003/0001-64';
   var MODELO_FALLBACK = { name_prefixes:['B1'], task:'v4', density:3, label_type:1, speed:1 };
   var TAM_FALLBACK = { w_px:W, h_px:H, offset_y_px:0 };
 
   var S = { pin:'', sessao:null, produto:null, metodo:null, qtd:1, tela:'pin',
             erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3,
-            itens:[], item:null, carregando:false,
+            itens:[], item:null, carregando:false, medQtd:'', medUn:'',
             av:{ nome:'', metodo:'refrigerado', dias:3, qtd:1 } };
 
   try { var dsalvo = parseInt(localStorage.getItem('feitoria_densidade'), 10);
@@ -177,10 +179,10 @@
     var m = METODOS[dados.conservacao] || { nome:dados.conservacao };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#000'; x.textBaseline = 'top';
-    x.font = 'bold 22px Arial, sans-serif';
-    x.fillText(String(dados.unidade).toUpperCase(), 14, 12);
-    x.textAlign = 'right'; x.fillText(String(m.nome).toUpperCase(), W - 14, 12); x.textAlign = 'left';
-    x.fillRect(14, 42, W - 28, 3);
+    x.font = 'bold 20px Arial, sans-serif';
+    x.fillText(EMPRESA_CURTA, 14, 10);
+    x.textAlign = 'right'; x.fillText(String(m.nome).toUpperCase(), W - 14, 10); x.textAlign = 'left';
+    x.fillRect(14, 38, W - 28, 3);
 
     // QR do código individual, canto direito — é por ele que se dá baixa
     var codigo = dados.codigo || dados.lote || '';
@@ -191,7 +193,7 @@
         qr.addData(codigo);
         qr.make();
         var mods = qr.getModuleCount();
-        var lado = 108, px = lado / mods, x0 = W - lado - 14, y0 = 58;
+        var lado = 104, px = lado / mods, x0 = W - lado - 14, y0 = 50;
         x.fillStyle = '#fff'; x.fillRect(x0 - 4, y0 - 4, lado + 8, lado + 8);
         x.fillStyle = '#000';
         for (var lin = 0; lin < mods; lin++) {
@@ -205,16 +207,25 @@
       } catch (e) {}
     }
 
-    x.font = 'bold 42px Arial, sans-serif';
+    x.font = 'bold 40px Arial, sans-serif';
     var linhas = quebrar(x, dados.produto, larguraTexto, 2);
-    var y = 56;
-    for (var i = 0; i < linhas.length; i++) { x.fillText(linhas[i], 14, y); y += 46; }
-    if (linhas.length === 1) y += 8;
-    x.font = '21px Arial, sans-serif';
-    var yy = Math.min(y, 190);
+    var y = 48;
+    for (var i = 0; i < linhas.length; i++) { x.fillText(linhas[i], 14, y); y += 42; }
+
+    // porcionamento: "80 un", "600 g" — só aparece quando existe
+    if (dados.medida) {
+      x.font = 'bold 28px Arial, sans-serif';
+      x.fillText(String(dados.medida).toUpperCase(), 14, y + 2);
+      y += 34;
+    }
+
+    x.font = '20px Arial, sans-serif';
+    var yy = Math.min(y + 6, 196);
     x.fillText('MANIP. ' + dh(dados.manipulado_em) + '  ' + String(dados.responsavel).split(' ')[0].toUpperCase(), 14, yy);
-    x.font = 'bold 21px Arial, sans-serif';
-    x.fillText(codigo, 14, yy + 26);
+    x.font = 'bold 22px Arial, sans-serif';
+    x.fillText(codigo, 14, yy + 24);
+    x.font = '16px Arial, sans-serif';
+    x.fillText(EMPRESA_LINHA, 14, yy + 50);
     x.fillRect(0, H - 74, W, 74);
     x.fillStyle = '#fff';
     x.font = 'bold 24px Arial, sans-serif';
@@ -232,7 +243,8 @@
     return { unidade:S.sessao.unidade.nome, produto:S.produto.name, conservacao:S.metodo,
       manipulado_em:agora.toISOString(),
       validade:new Date(agora.getTime() + s.shelf_life_hours * 3600000).toISOString(),
-      responsavel:S.sessao.colaborador.nome, codigo:'AO-IMPRIMIR' };
+      responsavel:S.sessao.colaborador.nome, codigo:'AO-IMPRIMIR',
+      medida:medidaTexto() };
   }
 
   // ---------- helpers de validade ----------
@@ -244,6 +256,19 @@
     if (h < 1)  return 'menos de 1h';
     if (h < 24) return 'em ' + Math.round(h) + 'h';
     return 'em ' + Math.floor(h / 24) + 'd';
+  }
+
+  var UNIDADES = ['UN','KG','G','L','ML'];
+
+  // unidade sugerida vem do cadastro do produto (que veio da Takeat); UN é o padrão
+  function unidadeSugerida(){
+    var u = String((S.produto && S.produto.unit) || '').trim().toUpperCase();
+    return UNIDADES.indexOf(u) >= 0 ? u : 'UN';
+  }
+  function medidaTexto(){
+    var q = parseFloat(String(S.medQtd).replace(',', '.'));
+    if (!isFinite(q) || q <= 0) return null;
+    return String(q).replace('.', ',') + ' ' + (S.medUn || unidadeSugerida());
   }
 
   var DESTINOS = [
@@ -405,7 +430,19 @@
       '<h1>Conferir e imprimir</h1>' +
       '<p class="sub">Prévia em tamanho real (50 × 30 mm). O lote e a validade saem do servidor.</p>' +
       '<canvas id="prev"></canvas>' +
+      '<div class="campo" style="margin-top:18px"><label>Porção ou quantidade dentro — opcional</label>' +
+        '<div class="dupla">' +
+          '<input id="f-qtd" type="number" inputmode="decimal" step="0.001" min="0" ' +
+            'value="' + esc(S.medQtd) + '" placeholder="Ex: 80" autocomplete="off">' +
+          '<select id="f-un">' +
+            UNIDADES.map(function(u){
+              var sel = (S.medUn || unidadeSugerida()) === u ? ' selected' : '';
+              return '<option value="' + u + '"' + sel + '>' + u + '</option>';
+            }).join('') +
+          '</select>' +
+        '</div></div>' +
       '<div class="qty"><button data-a="menos">-</button><span>' + S.qtd + '</span><button data-a="mais">+</button></div>' +
+      '<p class="sub" style="text-align:center;margin:-8px 0 0">etiquetas a imprimir</p>' +
       '<button class="big" data-a="imprimir">Imprimir ' + S.qtd + (S.qtd === 1 ? ' etiqueta' : ' etiquetas') + '</button>' +
       '<button class="big ghost" data-a="voltar">Voltar</button>';
   }
@@ -508,8 +545,13 @@
         '<div><label>Como vai guardar</label><select id="av-metodo">' + opts + '</select></div>' +
         '<div><label>Validade (dias)</label><input id="av-dias" type="number" min="1" max="180" value="' + S.av.dias + '"></div>' +
       '</div>' +
-      '<div class="campo"><label>Quantas etiquetas</label>' +
-        '<input id="av-qtd" type="number" min="1" max="20" value="' + S.av.qtd + '"></div>' +
+      '<div class="campo dupla">' +
+        '<div><label>Quantas etiquetas</label><input id="av-qtd" type="number" min="1" max="20" value="' + S.av.qtd + '"></div>' +
+        '<div><label>Porção — opcional</label>' +
+          '<div class="dupla"><input id="av-qtd" type="number" inputmode="decimal" step="0.001" min="0" placeholder="Qtd">' +
+          '<select id="av-un">' + UNIDADES.map(function(u){
+            return '<option value="' + u + '">' + u + '</option>'; }).join('') + '</select></div></div>' +
+      '</div>' +
       '<button class="big" data-a="salvar-avulso">Gerar e imprimir</button>' +
       '<button class="big ghost" data-a="ir" data-t="produto">Voltar</button>';
   }
@@ -530,6 +572,18 @@
     });
     var cv = document.getElementById('prev');
     if (cv) desenhar(exemploPreview(), cv);
+
+    // a prévia acompanha o que se digita, então dá para ver se cabe antes de imprimir
+    function ligarPreview(el, campo){
+      if (!el) return;
+      el.addEventListener(campo === 'medUn' ? 'change' : 'input', function(){
+        S[campo] = el.value;
+        var cvv = document.getElementById('prev');
+        if (cvv) desenhar(exemploPreview(), cvv);
+      });
+    }
+    ligarPreview(document.getElementById('f-qtd'), 'medQtd');
+    ligarPreview(document.getElementById('f-un'), 'medUn');
     var sd = document.getElementById('f-dens');
     if (sd) sd.addEventListener('change', function(){
       S.dens = parseInt(sd.value, 10) || 3;
@@ -658,8 +712,10 @@
 
       if (S.av.nome.length < 2) { S.erro = 'Informe o nome do item.'; return render(); }
       el.disabled = true; el.textContent = 'Gerando…';
+      var avq = document.getElementById('av-qtd'), avu = document.getElementById('av-un');
       chamar({ action:'avulso', unit_token:TOKEN, pin:S.pin, nome:S.av.nome,
-               storage_method:S.av.metodo, horas:S.av.dias * 24, quantity:S.av.qtd })
+               storage_method:S.av.metodo, horas:S.av.dias * 24, quantity:S.av.qtd,
+               medida_qtd: avq ? avq.value : '', medida_un: avu ? avu.value : 'UN' })
         .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
         .then(function(j){
           S.aviso = j.etiquetas.length + ' etiqueta(s) — ' + j.etiqueta.produto + ' (avulso, a regularizar na Takeat).';
@@ -701,13 +757,16 @@
       var qtd = S.qtd;
       el.disabled = true; el.textContent = 'Imprimindo...';
       chamar({ action:'print', unit_token:TOKEN, pin:S.pin, product_id:S.produto.id,
-               storage_method:S.metodo, quantity:qtd })
+               storage_method:S.metodo, quantity:qtd,
+               medida_qtd:S.medQtd, medida_un:S.medUn || unidadeSugerida() })
         .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
         .then(function(j){
           S.aviso = qtd + (qtd === 1 ? ' etiqueta' : ' etiquetas') + ' — ' + j.etiqueta.produto +
+                    (j.etiqueta.medida ? ' (' + j.etiqueta.medida + ')' : '') +
                     ' · ' + j.etiquetas[0].codigo +
                     (qtd > 1 ? ' até ' + j.etiquetas[qtd - 1].codigo : '');
-          S.tela = 'produto'; S.produto = null; S.metodo = null; S.busca = ''; S.erro = '';
+          S.tela = 'produto'; S.produto = null; S.metodo = null; S.busca = '';
+          S.medQtd = ''; S.medUn = ''; S.erro = '';
           toque(); render();
           setTimeout(function(){ S.aviso = ''; if (S.tela === 'produto') render(); }, 7000);
         })
