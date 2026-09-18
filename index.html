@@ -193,7 +193,7 @@
         qr.addData(codigo);
         qr.make();
         var mods = qr.getModuleCount();
-        var lado = 104, px = lado / mods, x0 = W - lado - 14, y0 = 50;
+        var lado = 124, px = lado / mods, x0 = W - lado - 14, y0 = 50;
         x.fillStyle = '#fff'; x.fillRect(x0 - 4, y0 - 4, lado + 8, lado + 8);
         x.fillStyle = '#000';
         for (var lin = 0; lin < mods; lin++) {
@@ -219,13 +219,18 @@
       y += 34;
     }
 
+    // O bloco de baixo se apoia na tarja de validade, não no fim do nome —
+    // assim não sobra faixa branca quando o nome é curto.
+    var base = H - 74;                       // topo da tarja preta
+    var yEmp = base - 24, yCod = base - 52, yMan = base - 78;
+    if (yMan < y + 4) { yMan = y + 4; yCod = yMan + 26; yEmp = yCod + 28; }
+
     x.font = '20px Arial, sans-serif';
-    var yy = Math.min(y + 6, 196);
-    x.fillText('MANIP. ' + dh(dados.manipulado_em) + '  ' + String(dados.responsavel).split(' ')[0].toUpperCase(), 14, yy);
-    x.font = 'bold 22px Arial, sans-serif';
-    x.fillText(codigo, 14, yy + 24);
+    x.fillText('MANIP. ' + dh(dados.manipulado_em) + '  ' + String(dados.responsavel).split(' ')[0].toUpperCase(), 14, yMan);
+    x.font = 'bold 24px Arial, sans-serif';
+    x.fillText(codigo, 14, yCod);
     x.font = '16px Arial, sans-serif';
-    x.fillText(EMPRESA_LINHA, 14, yy + 50);
+    x.fillText(EMPRESA_LINHA, 14, yEmp);
     x.fillRect(0, H - 74, W, 74);
     x.fillStyle = '#fff';
     x.font = 'bold 24px Arial, sans-serif';

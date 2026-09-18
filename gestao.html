@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestão — Feitoria</title>
+<style>
+  :root{
+    --ground:#F2F4F1; --surface:#fff; --ink:#131A16; --muted:#5C6660;
+    --accent:#1F6F4A; --line:#D7DED8; --amber:#A8730C; --amber-bg:#F7EDD6;
+    --red:#9A2B1E; --red-bg:#FBEAE6; --ok-bg:#E2F0E8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ground);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 70px}
+  h1{font-size:22px;font-weight:700}
+  h2{font-size:17px;font-weight:700;margin:26px 0 10px}
+  p.sub{color:var(--muted);font-size:14px;margin:0 0 16px}
+  button{font:inherit;cursor:pointer}
+  input,select{font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:9px;
+               background:var(--surface);color:var(--ink);width:100%}
+  input[type="checkbox"]{width:auto}
+  .btn{padding:11px 17px;border-radius:9px;border:none;background:var(--accent);color:#fff;font-weight:600}
+  .btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line);font-weight:500}
+  .btn.sm{padding:6px 11px;font-size:13.5px}
+  .btn:disabled{opacity:.5}
+
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+       border-bottom:1px solid var(--line);padding-bottom:13px;margin-bottom:16px}
+  .top small{display:block;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+  .tabs{display:flex;gap:7px;margin-bottom:20px;flex-wrap:wrap}
+  .tabs button{padding:9px 16px;border-radius:99px;border:1px solid var(--line);
+               background:var(--surface);color:var(--muted)}
+  .tabs button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);
+        border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);font-size:14.5px;vertical-align:middle}
+  th{font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--muted);background:#E9EDE8}
+  tr:last-child td{border-bottom:none}
+  td.dir{text-align:right;white-space:nowrap}
+  .tbl{overflow-x:auto}
+
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
+  .p-ok{background:var(--ok-bg);color:var(--accent)}
+  .p-av{background:#E9EDE8;color:var(--muted)}
+  .p-dv{background:var(--amber-bg);color:var(--amber)}
+  .p-no{background:var(--red-bg);color:var(--red)}
+
+  .msg{padding:11px 14px;border-radius:9px;margin:14px 0;font-size:14.5px}
+  .msg.e{background:var(--red-bg);color:var(--red)}
+  .msg.s{background:var(--ok-bg);color:var(--accent)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .row .grow{flex:1 1 220px}
+  .login{max-width:360px;margin:11vh auto 0}
+  .login input{margin-bottom:11px}
+  .campo{margin-bottom:13px}
+  .campo label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+  .dupla{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .prazos{display:grid;gap:9px;margin-top:6px}
+  .prazo{display:grid;grid-template-columns:22px 1fr 90px 92px;gap:9px;align-items:center;
+         border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)}
+  .prazo span{font-size:14.5px}
+  dialog{border:none;border-radius:13px;padding:22px;max-width:520px;width:94%;
+         box-shadow:0 20px 60px rgba(0,0,0,.25);background:var(--surface);color:var(--ink)}
+  dialog::backdrop{background:rgba(19,26,22,.45)}
+  .lista{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:9px;margin-top:8px}
+  .lista button{display:block;width:100%;text-align:left;padding:10px 12px;border:none;
+                border-bottom:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px}
+  .lista button:hover{background:#EDF2EE}
+  .lista small{display:block;color:var(--muted);font-size:12px}
+  .hint{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+  .total{font-weight:700;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body><div class="wrap" id="app">Carregando…</div>
+<dialog id="dlg"></dialog>
+<script>
+(function(){
+  var BASE = 'https://kujelbcbrcmkitzyswbh.supabase.co';
+  var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1amVsYmNicmNta2l0enlzd2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NDg0MzAsImV4cCI6MjEwNDIyNDQzMH0.uDwckXtywDBZGU_i4J8S9BdO2fUtRwXCOaLJbSiWzdQ';
+  var UNIDADES = ['UN','KG','G','L','ML'];
+  var METODOS = [
+    { k:'ambiente',     n:'Ambiente' },
+    { k:'refrigerado',  n:'Refrigerado' },
+    { k:'congelado',    n:'Congelado' },
+    { k:'descongelado', n:'Descongelado' }
+  ];
+  var DESTINOS = { sobra:'Sobra', vencido:'Vencido', quebra:'Quebra/erro', outro:'Outro' };
+
+  var S = { tok:null, email:'', unidades:[], unidade:null, aba:'equipe',
+            equipe:[], produtos:[], relatorio:[], erro:'', ok:'', carregando:false, dias:7 };
+  var app = document.getElementById('app');
+  var dlg = document.getElementById('dlg');
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+
+  function cab(extra){
+    var h = { 'apikey':ANON, 'Content-Type':'application/json',
+              'Authorization':'Bearer ' + (S.tok || ANON) };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+  function rest(caminho, opts){
+    opts = opts || {};
+    return fetch(BASE + '/rest/v1/' + caminho, {
+      method: opts.method || 'GET', headers: cab(opts.headers),
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function(r){
+      if (r.status === 204) return null;
+      return r.text().then(function(t){
+        var j = t ? JSON.parse(t) : null;
+        if (!r.ok) throw new Error((j && (j.message || j.error || j.hint)) || ('Erro ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  function entrar(email, senha){
+    return fetch(BASE + '/auth/v1/token?grant_type=password', {
+      method:'POST', headers:{ 'apikey':ANON, 'Content-Type':'application/json' },
+      body: JSON.stringify({ email:email, password:senha })
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (!j.access_token) throw new Error(j.error_description || j.msg || 'E-mail ou senha incorretos.');
+      S.tok = j.access_token; S.email = email;
+      try { sessionStorage.setItem('gestao', JSON.stringify({ t:j.access_token, e:email })); } catch(e){}
+    });
+  }
+  function sair(){
+    try { sessionStorage.removeItem('gestao'); } catch(e){}
+    S.tok = null; S.unidades = []; S.unidade = null; render();
+  }
+  function trocarSenha(nova){
+    return fetch(BASE + '/auth/v1/user', {
+      method:'PUT', headers:cab(), body: JSON.stringify({ password: nova })
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (j.error || j.msg) throw new Error(j.error_description || j.msg || 'Não foi possível trocar.');
+    });
+  }
+
+  // ---------- carregar ----------
+
+  function carregarUnidades(){
+    return rest('restaurants?select=id,name,public_token&order=name').then(function(d){
+      S.unidades = d || [];
+      if (!S.unidade && S.unidades.length) S.unidade = S.unidades[0].id;
+    });
+  }
+
+  function carregarAba(){
+    if (!S.unidade) return Promise.resolve();
+    S.carregando = true; render();
+    var p;
+    if (S.aba === 'equipe') {
+      p = rest('vw_employees?restaurant_id=eq.' + S.unidade +
+               '&select=id,full_name,role_title,active,tem_pin&order=full_name')
+            .then(function(d){ S.equipe = d || []; });
+    } else if (S.aba === 'produtos') {
+      p = rest('label_products?restaurant_id=eq.' + S.unidade +
+               '&select=id,name,category,unit,active,takeat_catalog_id,takeat_name,' +
+               'label_shelf_lives(id,storage_method,shelf_life_hours)&order=category,name')
+            .then(function(d){ S.produtos = d || []; });
+    } else {
+      var desde = new Date(Date.now() - S.dias * 86400000).toISOString().slice(0, 10);
+      p = rest('vw_perdas_sobras_diario?restaurant_id=eq.' + S.unidade +
+               '&dia=gte.' + desde + '&select=*&order=dia.desc')
+            .then(function(d){ S.relatorio = d || []; });
+    }
+    return p.catch(function(e){ S.erro = e.message; })
+            .then(function(){ S.carregando = false; render(); });
+  }
+
+  function abrir(html){ dlg.innerHTML = html; dlg.showModal(); }
+
+  // ---------- equipe ----------
+
+  function telaEquipe(){
+    if (S.carregando) return '<p class="sub">Carregando…</p>';
+    var linhas = S.equipe.map(function(e){
+      return '<tr><td><b>' + esc(e.full_name) + '</b></td>' +
+        '<td>' + esc(e.role_title || '—') + '</td>' +
+        '<td>' + (e.tem_pin ? '<span class="pill p-ok">PIN definido</span>'
+                            : '<span class="pill p-no">sem PIN</span>') + '</td>' +
+        '<td>' + (e.active ? 'Ativo' : 'Inativo') + '</td>' +
+        '<td class="dir">' +
+          '<button class="btn ghost sm" data-a="pin" data-id="' + esc(e.id) + '" data-nome="' + esc(e.full_name) + '">PIN</button> ' +
+          '<button class="btn ghost sm" data-a="toggle-emp" data-id="' + esc(e.id) + '" data-on="' + (e.active ? '1' : '0') + '">' +
+            (e.active ? 'Inativar' : 'Reativar') + '</button></td></tr>';
+    }).join('');
+
+    return '<div class="row"><button class="btn" data-a="novo-colab">Novo colaborador</button>' +
+      '<span class="sub" style="margin:0">Sem PIN, a pessoa não consegue etiquetar.</span></div>' +
+      (S.equipe.length
+        ? '<div class="tbl"><table><thead><tr><th>Nome</th><th>Função</th><th>PIN</th><th>Situação</th><th></th></tr></thead>' +
+          '<tbody>' + linhas + '</tbody></table></div>'
+        : '<p class="sub">Ninguém cadastrado ainda.</p>');
+  }
+
+  // ---------- produtos ----------
+
+  function prazoTexto(h){
+    if (h % 24 === 0) { var d = h / 24; return d + (d === 1 ? ' dia' : ' dias'); }
+    return h + 'h';
+  }
+
+  function telaProdutos(){
+    if (S.carregando) return '<p class="sub">Carregando…</p>';
+    var linhas = S.produtos.map(function(p){
+      var prazos = (p.label_shelf_lives || []).map(function(s){
+        var m = METODOS.filter(function(x){ return x.k === s.storage_method; })[0];
+        return (m ? m.n : s.storage_method) + ': ' + prazoTexto(s.shelf_life_hours);
+      }).join(' · ') || '<span class="pill p-no">sem prazo</span>';
+
+      var vinc = p.takeat_catalog_id
+        ? (p.takeat_name && p.takeat_name.trim().toLowerCase() !== p.name.trim().toLowerCase()
+            ? '<span class="pill p-dv">nome difere</span>' : '<span class="pill p-ok">vinculado</span>')
+        : '<span class="pill p-av">avulso</span>';
+
+      return '<tr' + (p.active ? '' : ' style="opacity:.5"') + '>' +
+        '<td><b>' + esc(p.name) + '</b><br><small style="color:var(--muted)">' +
+          esc(p.category || 'Sem categoria') + (p.unit ? ' · ' + esc(p.unit) : '') + '</small></td>' +
+        '<td>' + prazos + '</td>' +
+        '<td>' + vinc + '</td>' +
+        '<td class="dir">' +
+          '<button class="btn ghost sm" data-a="editar" data-id="' + esc(p.id) + '">Editar</button> ' +
+          '<button class="btn ghost sm" data-a="vincular" data-id="' + esc(p.id) + '">Takeat</button>' +
+        '</td></tr>';
+    }).join('');
+
+    return '<div class="row"><button class="btn" data-a="novo-prod">Novo produto</button>' +
+      '<button class="btn ghost" data-a="sync">Sincronizar catálogo da Takeat</button></div>' +
+      '<p class="sub">Produto sem prazo cadastrado não aparece para a cozinha etiquetar.</p>' +
+      (S.produtos.length
+        ? '<div class="tbl"><table><thead><tr><th>Produto</th><th>Prazos</th><th>Takeat</th><th></th></tr></thead>' +
+          '<tbody>' + linhas + '</tbody></table></div>'
+        : '<p class="sub">Nenhum produto cadastrado.</p>');
+  }
+
+  function formProduto(p){
+    p = p || { name:'', category:'', unit:'', label_shelf_lives:[] };
+    var atual = {};
+    (p.label_shelf_lives || []).forEach(function(s){ atual[s.storage_method] = s.shelf_life_hours; });
+
+    var prazos = METODOS.map(function(m){
+      var tem = atual[m.k] != null;
+      var val = tem ? (atual[m.k] % 24 === 0 ? atual[m.k] / 24 : atual[m.k]) : '';
+      var emDias = !tem || atual[m.k] % 24 === 0;
+      return '<div class="prazo">' +
+        '<input type="checkbox" id="c-' + m.k + '"' + (tem ? ' checked' : '') + '>' +
+        '<span>' + m.n + '</span>' +
+        '<input type="number" id="v-' + m.k + '" min="1" value="' + val + '" placeholder="—">' +
+        '<select id="u-' + m.k + '">' +
+          '<option value="24"' + (emDias ? ' selected' : '') + '>dias</option>' +
+          '<option value="1"' + (emDias ? '' : ' selected') + '>horas</option>' +
+        '</select></div>';
+    }).join('');
+
+    abrir('<h2 style="margin:0 0 4px">' + (p.id ? 'Editar produto' : 'Novo produto') + '</h2>' +
+      '<p class="sub">O prazo é por método de conservação. Desmarcar um método significa que a cozinha não pode guardar assim.</p>' +
+      '<div class="campo"><label>Nome como a cozinha fala</label>' +
+        '<input id="p-nome" value="' + esc(p.name) + '" placeholder="Ex: Batata porção G"></div>' +
+      '<div class="campo dupla">' +
+        '<div><label>Categoria</label><input id="p-cat" value="' + esc(p.category || '') + '" placeholder="Molhos, Proteínas…"></div>' +
+        '<div><label>Unidade padrão</label><select id="p-un"><option value="">—</option>' +
+          UNIDADES.map(function(u){ return '<option value="' + u + '"' +
+            (String(p.unit || '').toUpperCase() === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') +
+        '</select></div></div>' +
+      '<label style="font-size:13px;color:var(--muted)">Prazos</label>' +
+      '<div class="prazos">' + prazos + '</div>' +
+      '<div class="row" style="margin:18px 0 0;justify-content:space-between">' +
+        (p.id ? '<button class="btn ghost" data-a="toggle-prod" data-id="' + esc(p.id) + '" data-on="' +
+                (p.active ? '1' : '0') + '">' + (p.active ? 'Inativar' : 'Reativar') + '</button>' : '<span></span>') +
+        '<span><button class="btn ghost" data-a="fechar">Cancelar</button> ' +
+        '<button class="btn" data-a="salvar-prod" data-id="' + esc(p.id || '') + '">Salvar</button></span>' +
+      '</div>');
+  }
+
+  function salvarProduto(id, botao){
+    var nome = document.getElementById('p-nome').value.trim();
+    if (nome.length < 2) return;
+    botao.disabled = true; botao.textContent = 'Salvando…';
+
+    var corpo = { restaurant_id:S.unidade, name:nome,
+                  category: document.getElementById('p-cat').value.trim() || null,
+                  unit: document.getElementById('p-un').value || null };
+
+    var salvar = id
+      ? rest('label_products?id=eq.' + id, { method:'PATCH', body:corpo,
+              headers:{ Prefer:'return=representation' } }).then(function(d){ return (d && d[0]) || { id:id }; })
+      : rest('label_products', { method:'POST', body:corpo,
+              headers:{ Prefer:'return=representation' } }).then(function(d){ return d[0]; });
+
+    salvar.then(function(prod){
+      var ops = METODOS.map(function(m){
+        var on = document.getElementById('c-' + m.k).checked;
+        var v  = parseFloat(document.getElementById('v-' + m.k).value);
+        var mult = parseInt(document.getElementById('u-' + m.k).value, 10);
+        if (on && v > 0) {
+          return rest('label_shelf_lives?on_conflict=product_id,storage_method', {
+            method:'POST',
+            headers:{ Prefer:'resolution=merge-duplicates' },
+            body:{ product_id:prod.id, storage_method:m.k, shelf_life_hours: Math.round(v * mult) }
+          });
+        }
+        return rest('label_shelf_lives?product_id=eq.' + prod.id + '&storage_method=eq.' + m.k,
+                    { method:'DELETE' });
+      });
+      return Promise.all(ops);
+    }).then(function(){
+      dlg.close(); S.ok = 'Produto salvo.'; S.erro = ''; carregarAba();
+    }).catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+  }
+
+  function vincular(prod){
+    abrir('<h2 style="margin:0 0 4px">' + esc(prod.name) + '</h2>' +
+      '<p class="sub">Vincule ao insumo ou intermediário da Takeat para padronizar o nome — ou deixe avulso.</p>' +
+      '<input id="v-busca" placeholder="Buscar no catálogo da Takeat" autocomplete="off">' +
+      '<div class="lista" id="v-res"><button disabled style="color:#5C6660">Digite para buscar</button></div>' +
+      (prod.takeat_name ? '<p class="hint">Hoje vinculado a: <b>' + esc(prod.takeat_name) + '</b></p>' : '') +
+      '<div class="row" style="margin:18px 0 0;justify-content:space-between">' +
+        '<button class="btn ghost" data-a="desvincular" data-id="' + esc(prod.id) + '">Deixar avulso</button>' +
+        '<button class="btn ghost" data-a="fechar">Fechar</button></div>');
+
+    var busca = document.getElementById('v-busca'), res = document.getElementById('v-res'), t;
+    busca.addEventListener('input', function(){
+      clearTimeout(t);
+      var termo = busca.value.trim();
+      if (termo.length < 2) { res.innerHTML = '<button disabled style="color:#5C6660">Digite para buscar</button>'; return; }
+      t = setTimeout(function(){
+        rest('takeat_catalog?restaurant_id=eq.' + S.unidade + '&name=ilike.*' +
+             encodeURIComponent(termo) + '*&select=id,name,kind,unit&limit=25&order=name')
+          .then(function(d){
+            if (!d || !d.length) { res.innerHTML = '<button disabled style="color:#5C6660">Nada encontrado. Sincronize o catálogo.</button>'; return; }
+            res.innerHTML = d.map(function(c){
+              var tipo = c.kind === 'input' ? 'Insumo' : (c.kind === 'intermediary' ? 'Intermediário' : 'Produto');
+              return '<button data-a="escolher" data-id="' + esc(prod.id) + '" data-cid="' + esc(c.id) +
+                '" data-nome="' + esc(c.name) + '">' + esc(c.name) +
+                '<small>' + tipo + (c.unit ? ' · ' + esc(c.unit) : '') + '</small></button>';
+            }).join('');
+          })
+          .catch(function(e){ res.innerHTML = '<button disabled style="color:#9A2B1E">' + esc(e.message) + '</button>'; });
+      }, 250);
+    });
+    busca.focus();
+  }
+
+  // ---------- relatório ----------
+
+  function telaRelatorio(){
+    if (S.carregando) return '<p class="sub">Carregando…</p>';
+
+    var porDia = {}, ordem = [];
+    S.relatorio.forEach(function(r){
+      if (!porDia[r.dia]) { porDia[r.dia] = []; ordem.push(r.dia); }
+      porDia[r.dia].push(r);
+    });
+
+    var corpo = ordem.map(function(dia){
+      var linhas = porDia[dia].map(function(r){
+        var qtd = r.quantidade != null
+          ? Number(r.quantidade).toLocaleString('pt-BR') + ' ' + (r.unidade_medida || '')
+          : '<span style="color:var(--muted)">sem medida</span>';
+        return '<tr><td><b>' + esc(r.nome_na_takeat || r.product_name) + '</b>' +
+          (r.nome_na_takeat && r.nome_na_takeat !== r.product_name
+            ? '<br><small style="color:var(--muted)">na cozinha: ' + esc(r.product_name) + '</small>' : '') +
+          '</td><td>' + esc(DESTINOS[r.destino] || r.destino) + '</td>' +
+          '<td class="total">' + qtd + '</td>' +
+          '<td>' + r.etiquetas + '</td>' +
+          '<td><small style="color:var(--muted)">' + esc(r.responsaveis || '') + '</small></td></tr>';
+      }).join('');
+      var d = dia.split('-');
+      return '<h2>' + d[2] + '/' + d[1] + '/' + d[0] + '</h2>' +
+        '<div class="tbl"><table><thead><tr><th>Produto</th><th>Destino</th><th>Quantidade</th>' +
+        '<th>Etiquetas</th><th>Quem</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+    }).join('');
+
+    return '<div class="row">' +
+        '<select id="r-dias" style="width:auto">' +
+          [7, 15, 30].map(function(d){
+            return '<option value="' + d + '"' + (S.dias === d ? ' selected' : '') + '>Últimos ' + d + ' dias</option>';
+          }).join('') + '</select>' +
+        '<button class="btn ghost" data-a="csv">Baixar CSV</button></div>' +
+      '<p class="sub">O que precisa ser lançado em Perdas e Sobras na Takeat. Consumido não entra — sai pela venda.</p>' +
+      (corpo || '<p class="sub">Nenhuma baixa registrada no período.</p>');
+  }
+
+  function baixarCSV(){
+    var cab = ['dia','produto','nome_na_takeat','destino','quantidade','unidade','etiquetas','responsaveis','codigos'];
+    var linhas = S.relatorio.map(function(r){
+      return [r.dia, r.product_name, r.nome_na_takeat || '', r.destino,
+              r.quantidade == null ? '' : r.quantidade, r.unidade_medida || '',
+              r.etiquetas, r.responsaveis || '', r.codigos || '']
+        .map(function(v){ return '"' + String(v).replace(/"/g, '""') + '"'; }).join(';');
+    });
+    var csv = '﻿' + cab.join(';') + '\n' + linhas.join('\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+    a.download = 'perdas-sobras-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click();
+  }
+
+  // ---------- render ----------
+
+  function telaLogin(){
+    return '<div class="login"><h1>Portal Feitoria</h1>' +
+      '<p class="sub">Gestão de equipe, produtos e perdas</p>' +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      '<input id="l-email" type="email" placeholder="E-mail" value="' + esc(S.email) + '">' +
+      '<input id="l-senha" type="password" placeholder="Senha">' +
+      '<button class="btn" data-a="login" style="width:100%">Entrar</button></div>';
+  }
+
+  function render(){
+    if (!S.tok) { app.innerHTML = telaLogin(); return; }
+
+    var un = S.unidades.filter(function(u){ return u.id === S.unidade; })[0];
+    app.innerHTML =
+      '<div class="top"><div><small>' + esc(un ? un.name : '') + '</small><h1>Gestão</h1></div>' +
+        '<div><button class="btn ghost sm" data-a="senha">Trocar minha senha</button> ' +
+        '<button class="btn ghost sm" data-a="sair">Sair</button></div></div>' +
+      '<div class="tabs">' +
+        '<button data-a="aba" data-v="equipe"'   + (S.aba === 'equipe'   ? ' class="on"' : '') + '>Equipe e PINs</button>' +
+        '<button data-a="aba" data-v="produtos"' + (S.aba === 'produtos' ? ' class="on"' : '') + '>Produtos e prazos</button>' +
+        '<button data-a="aba" data-v="relatorio"'+ (S.aba === 'relatorio'? ' class="on"' : '') + '>Perdas e sobras</button>' +
+      '</div>' +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      (S.ok ? '<div class="msg s">' + esc(S.ok) + '</div>' : '') +
+      (S.aba === 'equipe' ? telaEquipe() : (S.aba === 'produtos' ? telaProdutos() : telaRelatorio()));
+
+    var rd = document.getElementById('r-dias');
+    if (rd) rd.addEventListener('change', function(){ S.dias = parseInt(rd.value, 10); carregarAba(); });
+  }
+
+  // ---------- eventos ----------
+
+  document.addEventListener('click', function(ev){
+    var el = ev.target.closest('button'); if (!el) return;
+    var a = el.getAttribute('data-a'), id = el.getAttribute('data-id');
+    if (!a) return;
+
+    if (a === 'login') {
+      el.disabled = true; el.textContent = 'Entrando…';
+      entrar(document.getElementById('l-email').value.trim(),
+             document.getElementById('l-senha').value)
+        .then(carregarUnidades).then(carregarAba)
+        .catch(function(e){ S.erro = e.message; S.tok = null; render(); });
+      return;
+    }
+    if (a === 'sair') return sair();
+    if (a === 'fechar') return dlg.close();
+    if (a === 'aba') { S.aba = el.getAttribute('data-v'); S.erro = ''; S.ok = ''; return carregarAba(); }
+    if (a === 'csv') return baixarCSV();
+
+    if (a === 'senha') {
+      return abrir('<h2 style="margin:0 0 4px">Trocar minha senha</h2>' +
+        '<p class="sub">Esta é a senha de acesso a esta tela de gestão — não tem relação com o PIN da cozinha.</p>' +
+        '<input id="s-nova" type="password" placeholder="Nova senha (mínimo 6 caracteres)">' +
+        '<div class="row" style="margin:18px 0 0;justify-content:flex-end">' +
+          '<button class="btn ghost" data-a="fechar">Cancelar</button> ' +
+          '<button class="btn" data-a="salvar-senha">Salvar</button></div>');
+    }
+    if (a === 'salvar-senha') {
+      var nova = document.getElementById('s-nova').value;
+      if (nova.length < 6) { document.getElementById('s-nova').style.borderColor = '#9A2B1E'; return; }
+      el.disabled = true;
+      trocarSenha(nova).then(function(){ dlg.close(); S.ok = 'Senha alterada.'; S.erro = ''; render(); })
+        .catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+      return;
+    }
+
+    // equipe
+    if (a === 'novo-colab') {
+      return abrir('<h2 style="margin:0 0 12px">Novo colaborador</h2>' +
+        '<div class="campo"><label>Nome completo</label><input id="f-nome"></div>' +
+        '<div class="campo"><label>Função</label><input id="f-cargo" placeholder="Cozinha, bar, salão"></div>' +
+        '<div class="row" style="margin:18px 0 0;justify-content:flex-end">' +
+          '<button class="btn ghost" data-a="fechar">Cancelar</button> ' +
+          '<button class="btn" data-a="salvar-colab">Salvar</button></div>');
+    }
+    if (a === 'salvar-colab') {
+      var nome = document.getElementById('f-nome').value.trim();
+      if (nome.length < 2) return;
+      el.disabled = true;
+      rest('employees', { method:'POST', body:{ restaurant_id:S.unidade, full_name:nome,
+              role_title: document.getElementById('f-cargo').value.trim() || null } })
+        .then(function(){ dlg.close(); S.ok = 'Cadastrado. Agora defina o PIN dele.'; S.erro = ''; carregarAba(); })
+        .catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+      return;
+    }
+    if (a === 'pin') {
+      return abrir('<h2 style="margin:0 0 4px">PIN de ' + esc(el.getAttribute('data-nome')) + '</h2>' +
+        '<p class="sub">É com este número que a pessoa entra na tela da cozinha.</p>' +
+        '<input id="f-pin" inputmode="numeric" maxlength="6" placeholder="4 a 6 dígitos">' +
+        '<p class="hint">O PIN é guardado só como hash e não pode ser consultado depois. Se a pessoa esquecer, defina um novo.</p>' +
+        '<div class="row" style="margin:18px 0 0;justify-content:flex-end">' +
+          '<button class="btn ghost" data-a="fechar">Cancelar</button> ' +
+          '<button class="btn" data-a="salvar-pin" data-id="' + esc(id) + '">Definir</button></div>');
+    }
+    if (a === 'salvar-pin') {
+      var pin = document.getElementById('f-pin').value.trim();
+      if (!/^[0-9]{4,6}$/.test(pin)) { document.getElementById('f-pin').style.borderColor = '#9A2B1E'; return; }
+      el.disabled = true;
+      rest('rpc/set_employee_pin', { method:'POST', body:{ _employee_id:id, _pin:pin } })
+        .then(function(){ dlg.close(); S.ok = 'PIN definido.'; S.erro = ''; carregarAba(); })
+        .catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+      return;
+    }
+    if (a === 'toggle-emp') {
+      var ligado = el.getAttribute('data-on') === '1';
+      el.disabled = true;
+      rest('employees?id=eq.' + id, { method:'PATCH', body:{ active: !ligado } })
+        .then(function(){ S.ok = ligado ? 'Inativado — o PIN parou de funcionar.' : 'Reativado.'; S.erro = ''; carregarAba(); })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+
+    // produtos
+    if (a === 'novo-prod') return formProduto(null);
+    if (a === 'editar') {
+      var pe = S.produtos.filter(function(p){ return p.id === id; })[0];
+      if (pe) formProduto(pe);
+      return;
+    }
+    if (a === 'salvar-prod') return salvarProduto(id || null, el);
+    if (a === 'toggle-prod') {
+      var on = el.getAttribute('data-on') === '1';
+      el.disabled = true;
+      rest('label_products?id=eq.' + id, { method:'PATCH', body:{ active: !on } })
+        .then(function(){ dlg.close(); S.ok = on ? 'Produto inativado.' : 'Produto reativado.'; S.erro = ''; carregarAba(); })
+        .catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+      return;
+    }
+    if (a === 'vincular') {
+      var pv = S.produtos.filter(function(p){ return p.id === id; })[0];
+      if (pv) vincular(pv);
+      return;
+    }
+    if (a === 'escolher') {
+      el.disabled = true;
+      rest('label_products?id=eq.' + id, { method:'PATCH', body:{
+        takeat_catalog_id: el.getAttribute('data-cid'),
+        takeat_name: el.getAttribute('data-nome'),
+        linked_at: new Date().toISOString() } })
+        .then(function(){ dlg.close(); S.ok = 'Vinculado à Takeat.'; S.erro = ''; carregarAba(); })
+        .catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+      return;
+    }
+    if (a === 'desvincular') {
+      el.disabled = true;
+      rest('label_products?id=eq.' + id, { method:'PATCH', body:{
+        takeat_catalog_id:null, takeat_name:null, linked_at:null } })
+        .then(function(){ dlg.close(); S.ok = 'Agora é avulso.'; S.erro = ''; carregarAba(); })
+        .catch(function(e){ dlg.close(); S.erro = e.message; render(); });
+      return;
+    }
+    if (a === 'sync') {
+      el.disabled = true; el.textContent = 'Sincronizando…';
+      fetch(BASE + '/functions/v1/takeat-sync-catalogo', {
+        method:'POST', headers:cab(), body: JSON.stringify({ restaurant_id:S.unidade })
+      }).then(function(r){ return r.json(); }).then(function(j){
+        if (j.error) { S.erro = j.error; S.ok = ''; }
+        else { S.ok = 'Catálogo sincronizado: ' + (j.sincronizados.input || 0) + ' insumos e ' +
+                      (j.sincronizados.intermediary || 0) + ' intermediários.'; S.erro = ''; }
+        render();
+      }).catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+  });
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !S.tok) { var b = document.querySelector('[data-a="login"]'); if (b) b.click(); }
+  });
+
+  try {
+    var g = JSON.parse(sessionStorage.getItem('gestao') || 'null');
+    if (g && g.t) { S.tok = g.t; S.email = g.e;
+      carregarUnidades().then(carregarAba).catch(function(){ sair(); }); }
+  } catch(e){}
+
+  render();
+})();
+</script>
+</body>
+</html>
