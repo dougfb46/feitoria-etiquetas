@@ -72,6 +72,15 @@
 
   .campo{margin-bottom:14px}
   .campo label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;letter-spacing:.04em}
+  .switch{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);
+          border-radius:10px;padding:14px 15px;margin:18px 0 12px;cursor:pointer;font-size:16px}
+  .switch input{width:22px;height:22px;accent-color:var(--accent);flex:0 0 auto}
+  .acoes{position:sticky;bottom:0;background:linear-gradient(to top,var(--ground) 72%,transparent);
+         padding:12px 0 6px;margin-top:6px}
+  .acoes .big{margin-top:0}
+  .aviso-acao{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .aviso-acao button{border:1px solid currentColor;background:transparent;color:inherit;
+                     border-radius:8px;padding:6px 12px;font:inherit;font-size:14px;font-weight:600}
   .campo input,.campo select{width:100%;padding:14px;font-size:17px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
   .dupla{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .destinos{display:grid;gap:9px;margin:14px 0}
@@ -111,6 +120,7 @@
   var S = { pin:'', sessao:null, produto:null, metodo:null, qtd:1, tela:'pin',
             erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3,
             itens:[], item:null, carregando:false, medQtd:'', medUn:'',
+            porcaoOn:false, ultima:null,
             av:{ nome:'', metodo:'refrigerado', dias:3, qtd:1 } };
 
   try { var dsalvo = parseInt(localStorage.getItem('feitoria_densidade'), 10);
@@ -265,6 +275,18 @@
 
   var UNIDADES = ['UN','KG','G','L','ML'];
 
+  // A cozinha etiqueta quase sempre as mesmas coisas. Guardamos no aparelho
+  // quantas vezes cada produto foi usado, para deixar os frequentes na frente.
+  function freqLer(){
+    try { return JSON.parse(localStorage.getItem('feitoria_freq') || '{}'); } catch(e){ return {}; }
+  }
+  function freqMarcar(id){
+    try {
+      var f = freqLer(); f[id] = (f[id] || 0) + 1;
+      localStorage.setItem('feitoria_freq', JSON.stringify(f));
+    } catch(e){}
+  }
+
   // unidade sugerida vem do cadastro do produto (que veio da Takeat); UN é o padrão
   function unidadeSugerida(){
     var u = String((S.produto && S.produto.unit) || '').trim().toUpperCase();
@@ -393,6 +415,12 @@
       '<button class="link" data-a="sair">Sair</button></div>' + barraImpressora();
   }
 
+  function cartaoProduto(p){
+    var n = (p.label_shelf_lives || []).length;
+    return '<button class="card" data-p="' + esc(p.id) + '">' + esc(p.name) +
+      '<small>' + n + (n === 1 ? ' forma de guardar' : ' formas de guardar') + '</small></button>';
+  }
+
   function telaProduto(){
     var termo = S.busca.trim().toLowerCase();
     var lista = S.sessao.produtos.filter(function(p){ return !termo || p.name.toLowerCase().indexOf(termo) >= 0; });
@@ -400,18 +428,28 @@
     lista.forEach(function(p){ var c = p.category || 'Outros';
       if (!grupos[c]) { grupos[c] = []; ordem.push(c); } grupos[c].push(p); });
     var corpo = '';
+
+    // Frequentes primeiro — só quando não há busca, para não brigar com o filtro
+    if (!termo) {
+      var f = freqLer();
+      var freq = lista.filter(function(p){ return f[p.id]; })
+                      .sort(function(a, b){ return f[b.id] - f[a.id]; })
+                      .slice(0, 6);
+      if (freq.length) {
+        corpo += '<div class="cat">Mais usados aqui</div><div class="grid">' +
+                 freq.map(cartaoProduto).join('') + '</div>';
+      }
+    }
     ordem.forEach(function(c){
-      corpo += '<div class="cat">' + esc(c) + '</div><div class="grid">';
-      grupos[c].forEach(function(p){
-        var n = (p.label_shelf_lives || []).length;
-        corpo += '<button class="card" data-p="' + esc(p.id) + '">' + esc(p.name) +
-          '<small>' + n + (n === 1 ? ' forma de guardar' : ' formas de guardar') + '</small></button>';
-      });
-      corpo += '</div>';
+      corpo += '<div class="cat">' + esc(c) + '</div><div class="grid">' +
+               grupos[c].map(cartaoProduto).join('') + '</div>';
     });
     if (!lista.length) corpo = '<p class="sub">Nenhum produto encontrado.</p>';
     return cabecalho() + navegacao('etiquetar') +
-      (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+      (S.aviso
+        ? '<div class="msg s"><div class="aviso-acao"><span>' + esc(S.aviso) + '</span>' +
+          (S.ultima ? '<button data-a="repetir">Imprimir de novo</button>' : '') + '</div></div>'
+        : '') +
       '<h1>O que você vai etiquetar?</h1>' +
       '<input class="search" id="busca" placeholder="Buscar produto" value="' + esc(S.busca) + '" autocomplete="off">' +
       corpo +
@@ -435,21 +473,25 @@
       '<h1>Conferir e imprimir</h1>' +
       '<p class="sub">Prévia em tamanho real (50 × 30 mm). O lote e a validade saem do servidor.</p>' +
       '<canvas id="prev"></canvas>' +
-      '<div class="campo" style="margin-top:18px"><label>Porção ou quantidade dentro — opcional</label>' +
-        '<div class="dupla">' +
-          '<input id="f-qtd" type="number" inputmode="decimal" step="0.001" min="0" ' +
-            'value="' + esc(S.medQtd) + '" placeholder="Ex: 80" autocomplete="off">' +
-          '<select id="f-un">' +
-            UNIDADES.map(function(u){
-              var sel = (S.medUn || unidadeSugerida()) === u ? ' selected' : '';
-              return '<option value="' + u + '"' + sel + '>' + u + '</option>';
-            }).join('') +
-          '</select>' +
-        '</div></div>' +
+      '<label class="switch"><input type="checkbox" id="f-porcao"' + (S.porcaoOn ? ' checked' : '') + '>' +
+        '<span>Informar porção ou quantidade</span></label>' +
+      (S.porcaoOn
+        ? '<div class="campo"><div class="dupla">' +
+            '<input id="f-qtd" type="number" inputmode="decimal" step="0.001" min="0" ' +
+              'value="' + esc(S.medQtd) + '" placeholder="Ex: 80" autocomplete="off">' +
+            '<select id="f-un">' +
+              UNIDADES.map(function(u){
+                var sel = (S.medUn || unidadeSugerida()) === u ? ' selected' : '';
+                return '<option value="' + u + '"' + sel + '>' + u + '</option>';
+              }).join('') +
+            '</select>' +
+          '</div></div>'
+        : '') +
       '<div class="qty"><button data-a="menos">-</button><span>' + S.qtd + '</span><button data-a="mais">+</button></div>' +
       '<p class="sub" style="text-align:center;margin:-8px 0 0">etiquetas a imprimir</p>' +
-      '<button class="big" data-a="imprimir">Imprimir ' + S.qtd + (S.qtd === 1 ? ' etiqueta' : ' etiquetas') + '</button>' +
-      '<button class="big ghost" data-a="voltar">Voltar</button>';
+      '<button class="big ghost" data-a="voltar">Voltar</button>' +
+      '<div class="acoes"><button class="big" data-a="imprimir">Imprimir ' + S.qtd +
+        (S.qtd === 1 ? ' etiqueta' : ' etiquetas') + '</button></div>';
   }
 
   function navegacao(atual){
@@ -578,6 +620,13 @@
     var cv = document.getElementById('prev');
     if (cv) desenhar(exemploPreview(), cv);
 
+    var fp = document.getElementById('f-porcao');
+    if (fp) fp.addEventListener('change', function(){
+      S.porcaoOn = fp.checked;
+      if (!S.porcaoOn) { S.medQtd = ''; S.medUn = ''; }   // desmarcou, não vai medida nenhuma
+      render();
+    });
+
     // a prévia acompanha o que se digita, então dá para ver se cabe antes de imprimir
     function ligarPreview(el, campo){
       if (!el) return;
@@ -658,7 +707,7 @@
 
     if (p) {
       S.produto = S.sessao.produtos.filter(function(z){ return z.id === p; })[0];
-      S.aviso = '';
+      S.aviso = ''; S.porcaoOn = false; S.medQtd = ''; S.medUn = '';
       var prazos = S.produto.label_shelf_lives || [];
       if (!prazos.length) { S.erro = 'Esse produto ainda não tem prazo cadastrado. Fale com a gerência.'; return render(); }
       if (prazos.length === 1) { S.metodo = prazos[0].storage_method; S.qtd = 1; S.tela = 'confirmar'; }
@@ -674,6 +723,15 @@
     if (a === 'mais')  { if (S.qtd < 20) S.qtd++; return render(); }
     if (a === 'conectar') return conectar(el);
     if (a === 'scan') return escanear(el);
+
+    // repete a última etiqueta sem refazer o caminho todo — o caso mais comum
+    if (a === 'repetir') {
+      if (!S.ultima) return;
+      S.produto = S.ultima.produto; S.metodo = S.ultima.metodo; S.qtd = S.ultima.qtd;
+      S.medQtd = S.ultima.medQtd; S.medUn = S.ultima.medUn; S.porcaoOn = S.ultima.porcaoOn;
+      S.tela = 'confirmar'; S.aviso = ''; S.erro = '';
+      toque(); return render();
+    }
 
     if (a === 'ir') {
       var destino = el.getAttribute('data-t');
@@ -766,6 +824,9 @@
                medida_qtd:S.medQtd, medida_un:S.medUn || unidadeSugerida() })
         .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
         .then(function(j){
+          freqMarcar(S.produto.id);
+          S.ultima = { produto:S.produto, metodo:S.metodo, qtd:qtd,
+                       medQtd:S.medQtd, medUn:S.medUn, porcaoOn:S.porcaoOn };
           S.aviso = qtd + (qtd === 1 ? ' etiqueta' : ' etiquetas') + ' — ' + j.etiqueta.produto +
                     (j.etiqueta.medida ? ' (' + j.etiqueta.medida + ')' : '') +
                     ' · ' + j.etiquetas[0].codigo +
