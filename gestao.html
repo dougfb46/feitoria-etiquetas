@@ -142,7 +142,7 @@
   // ---------- carregar ----------
 
   function carregarUnidades(){
-    return rest('restaurants?select=id,name,public_token&order=name').then(function(d){
+    return rest('restaurants?active=eq.true&select=id,name,public_token&order=name').then(function(d){
       S.unidades = d || [];
       if (!S.unidade && S.unidades.length) S.unidade = S.unidades[0].id;
     });
