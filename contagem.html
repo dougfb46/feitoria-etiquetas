@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Contagem — Feitoria</title>
+<style>
+  :root{--ground:#F2F4F1;--surface:#fff;--ink:#131A16;--muted:#5C6660;--accent:#1F6F4A;
+        --line:#D7DED8;--amber:#A8730C;--amber-bg:#F7EDD6;--red:#9A2B1E;--red-bg:#FBEAE6;--ok-bg:#E2F0E8}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--ink);font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  #app{max-width:760px;margin:0 auto;padding:14px 16px 96px}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 0 12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .top b{font-size:15px}
+  .top small{color:var(--muted);font-size:13px;display:block}
+  .link{background:none;border:none;color:var(--accent);font:inherit;font-size:14px;cursor:pointer;padding:6px;text-decoration:underline}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:15px}
+  .pinbox{max-width:320px;margin:6vh auto 0;text-align:center}
+  .dots{display:flex;justify-content:center;gap:12px;margin:22px 0 26px;min-height:20px}
+  .dot{width:14px;height:14px;border-radius:50%;background:var(--line)}
+  .dot.on{background:var(--accent)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .pad button{height:68px;font-size:24px;font-weight:600;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;cursor:pointer}
+  .pad button:active{background:var(--line)}
+  .pad .wide{font-size:16px;font-weight:500;color:var(--muted)}
+  .search{width:100%;padding:14px 16px;font-size:17px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px;background:var(--surface);color:var(--ink)}
+  .big{width:100%;padding:18px;font-size:18px;font-weight:600;border-radius:12px;border:none;background:var(--accent);color:#fff;cursor:pointer;margin-top:14px}
+  .big:disabled{opacity:.55}
+  .ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+  .msg{border-radius:10px;padding:12px 14px;margin:14px 0;font-size:15px}
+  .msg.e{background:var(--red-bg);color:var(--red)}
+  .msg.s{background:var(--ok-bg);color:var(--accent)}
+  .msg.w{background:var(--amber-bg);color:var(--amber)}
+  .cat{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:20px 0 8px}
+
+  .barra{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:6px 0 16px}
+  .barra i{display:block;height:100%;background:var(--accent)}
+
+  .item{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);
+        border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .item.feito{border-color:var(--accent);background:var(--ok-bg)}
+  .item .nome{flex:1;min-width:0}
+  .item .nome b{display:block;font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .nome small{color:var(--muted);font-size:13px}
+  .item .val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .item .val b{display:block;font-size:17px}
+  .item .val small{font-size:12px;color:var(--muted)}
+  .dif.mais{color:var(--accent)} .dif.menos{color:var(--red)}
+  .item button{border:1px solid var(--line);background:var(--ground);color:var(--ink);border-radius:9px;
+               padding:10px 14px;font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+
+  .campo{margin:14px 0}
+  .campo label{display:block;font-size:14px;color:var(--muted);margin-bottom:5px}
+  input,select{width:100%;padding:14px 16px;font:inherit;font-size:17px;border:1px solid var(--line);
+               border-radius:10px;background:var(--surface);color:var(--ink)}
+  .dupla{display:grid;grid-template-columns:1fr 110px;gap:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+  .chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:20px;
+                padding:9px 14px;font:inherit;font-size:14px;cursor:pointer}
+  .chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .acoes{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+         background:linear-gradient(180deg,rgba(242,244,241,0) 0%,var(--ground) 32%)}
+  .acoes .dentro{max-width:760px;margin:0 auto;display:flex;gap:10px}
+  .acoes button{flex:1;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:14px;background:var(--surface);
+        border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+     padding:10px;border-bottom:1px solid var(--line)}
+  td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #leitor{display:none;width:100%;max-width:420px;margin:12px auto;border-radius:12px;background:#000}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<video id="leitor" playsinline muted></video>
+
+<script>
+(function(){
+  var API = 'https://kujelbcbrcmkitzyswbh.supabase.co/functions/v1/contagem';
+  var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1amVsYmNicmNta2l0enlzd2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NDg0MzAsImV4cCI6MjEwNDIyNDQzMH0.uDwckXtywDBZGU_i4J8S9BdO2fUtRwXCOaLJbSiWzdQ';
+  var TOKEN = new URLSearchParams(location.search).get('u') || '';
+
+  var S = { pin:'', sessao:null, contagem:null, tela:'pin', erro:'', aviso:'',
+            linhas:[], total:0, feitas:0, busca:'', categoria:'', so_pendentes:true,
+            catsEscolhidas:[], lancando:null, lancQtd:'', lancUn:'',
+            relatorio:null, carregando:false };
+
+  var app = document.getElementById('app');
+  window.onerror = function(m){ document.body.insertAdjacentHTML('afterbegin',
+    '<div class="msg e" style="margin:10px">Erro na tela: ' + m + '</div>'); };
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+  function toque(){ try { navigator.vibrate && navigator.vibrate(12); } catch(e){} }
+
+  function n3(v){
+    if (v === null || v === undefined || v === '') return '—';
+    var x = Number(v);
+    if (!isFinite(x)) return '—';
+    return (Math.round(x * 1000) / 1000).toString().replace('.', ',');
+  }
+  function dh(iso){
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo',
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
+  }
+  function dinheiro(v){
+    return 'R$ ' + (Number(v) || 0).toFixed(2).replace('.', ',');
+  }
+
+  function chamar(corpo){
+    return fetch(API, { method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':ANON, 'Authorization':'Bearer ' + ANON },
+      body: JSON.stringify(corpo) })
+      .then(function(r){ return r.json().then(function(j){
+        if (!r.ok || j.error) { var e = new Error(j.error || 'Falhou'); e.dados = j; throw e; }
+        return j; }); });
+  }
+
+  // ---------- telas ----------
+  function cabecalho(){
+    if (!S.sessao) return '';
+    return '<div class="top"><div><b>' + esc(S.sessao.unidade.nome) + '</b>' +
+      '<small>' + esc(S.sessao.colaborador.nome) + '</small></div>' +
+      '<button class="link" data-a="sair">Sair</button></div>';
+  }
+
+  function telaPin(){
+    var d = '';
+    for (var i = 0; i < 6; i++) d += '<div class="dot' + (i < S.pin.length ? ' on' : '') + '"></div>';
+    var pad = '';
+    [1,2,3,4,5,6,7,8,9].forEach(function(k){ pad += '<button data-d="' + k + '">' + k + '</button>'; });
+    pad += '<button class="wide" data-a="limpar">limpar</button><button data-d="0">0</button>' +
+           '<button class="wide" data-a="apagar">apagar</button>';
+    return '<div class="pinbox"><h1>Contagem de estoque</h1>' +
+      '<p class="sub">Digite seu PIN</p>' +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      '<div class="dots">' + d + '</div><div class="pad">' + pad + '</div>' +
+      '<button class="big" data-a="entrar"' + (S.pin.length < 4 ? ' disabled' : '') + '>Entrar</button></div>';
+  }
+
+  function telaInicio(){
+    var c = S.contagem;
+    if (c) {
+      return cabecalho() +
+        (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+        '<h1>Contagem em andamento</h1>' +
+        '<p class="sub">Aberta em ' + esc(dh(c.opened_at)) + ' por ' + esc(c.opened_by_name || '') + '.</p>' +
+        '<button class="big" data-a="ir" data-t="contar">Continuar contando</button>' +
+        '<button class="big ghost" data-a="ver-relatorio">Ver o que já deu diferença</button>';
+    }
+    var cats = (S.sessao.categorias || []).map(function(k){
+      var on = S.catsEscolhidas.indexOf(k) >= 0;
+      return '<button class="' + (on ? 'on' : '') + '" data-a="cat" data-v="' + esc(k) + '">' + esc(k) + '</button>';
+    }).join('');
+    return cabecalho() +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+      '<h1>Nova contagem</h1>' +
+      '<p class="sub">Escolha o que vai contar agora. Sem escolher nada, entra tudo — ' +
+      'o que costuma ser demais para uma sessão só.</p>' +
+      '<div class="chips">' + cats + '</div>' +
+      '<button class="big" data-a="abrir">Começar a contagem</button>' +
+      '<button class="big ghost" data-a="ver-relatorio">Ver a última contagem</button>';
+  }
+
+  function linhaHTML(l){
+    var feito = l.qtd_contada !== null && l.qtd_contada !== undefined;
+    var dif = Number(l.diferenca || 0);
+    var cls = dif > 0 ? 'mais' : (dif < 0 ? 'menos' : '');
+    return '<div class="item' + (feito ? ' feito' : '') + '">' +
+      '<div class="nome"><b>' + esc(l.name) + '</b>' +
+        '<small>Takeat: ' + n3(l.qtd_sistema) + ' ' + esc(l.unit || '') +
+        (feito ? ' · contado ' + n3(l.qtd_contada) : '') + '</small></div>' +
+      (feito
+        ? '<div class="val"><b class="dif ' + cls + '">' + (dif > 0 ? '+' : '') + n3(dif) + '</b>' +
+          '<small>' + esc(l.unit || '') + '</small></div>'
+        : '') +
+      '<button data-a="lancar" data-id="' + esc(l.id) + '">' + (feito ? 'Somar' : 'Contar') + '</button>' +
+      '</div>';
+  }
+
+  function telaContar(){
+    if (S.carregando) return cabecalho() + '<p class="sub">Carregando…</p>';
+    var busca = S.busca.trim().toLowerCase();
+    var lista = S.linhas.filter(function(l){
+      return !busca || l.name.toLowerCase().indexOf(busca) >= 0;
+    });
+    var pct = S.total ? Math.round(S.feitas / S.total * 100) : 0;
+
+    var grupos = {}, ordem = [];
+    lista.forEach(function(l){
+      var c = l.categoria || 'Sem categoria';
+      if (!grupos[c]) { grupos[c] = []; ordem.push(c); }
+      grupos[c].push(l);
+    });
+    var corpo = ordem.map(function(c){
+      return '<div class="cat">' + esc(c) + '</div>' + grupos[c].map(linhaHTML).join('');
+    }).join('') || '<p class="sub">Nada aqui. Tente desmarcar "só o que falta".</p>';
+
+    return cabecalho() +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+      '<h1>' + S.feitas + ' de ' + S.total + ' contados</h1>' +
+      '<div class="barra"><i style="width:' + pct + '%"></i></div>' +
+      '<input class="search" id="busca" placeholder="Buscar item" value="' + esc(S.busca) + '" autocomplete="off">' +
+      '<div class="chips">' +
+        '<button class="' + (S.so_pendentes ? 'on' : '') + '" data-a="pendentes">Só o que falta</button>' +
+        '<button data-a="escanear">Ler QR da etiqueta</button>' +
+      '</div>' +
+      corpo +
+      '<div class="acoes"><div class="dentro">' +
+        '<button class="big ghost" data-a="ir" data-t="inicio">Voltar</button>' +
+        '<button class="big" data-a="fechar">Fechar contagem</button>' +
+      '</div></div>';
+  }
+
+  function telaLancar(){
+    var l = S.lancando;
+    var uns = (S.sessao.unidades_medida || ['UN','KG','G','L','ML']).map(function(u){
+      return '<option value="' + u + '"' + ((S.lancUn || l.unit) === u ? ' selected' : '') + '>' + u + '</option>';
+    }).join('');
+    var feito = l.qtd_contada !== null && l.qtd_contada !== undefined;
+    return cabecalho() +
+      (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
+      '<h1>' + esc(l.name) + '</h1>' +
+      '<p class="sub">A Takeat diz que tem <b>' + n3(l.qtd_sistema) + ' ' + esc(l.unit || '') + '</b>.' +
+      (feito ? ' Já foi contado ' + n3(l.qtd_contada) + ' ' + esc(l.unit || '') + '.' : '') + '</p>' +
+      '<div class="campo"><label>Quanto tem</label><div class="dupla">' +
+        '<input id="l-qtd" type="number" inputmode="decimal" step="0.001" min="0" ' +
+          'value="' + esc(S.lancQtd) + '" placeholder="Ex: 2,5" autocomplete="off" autofocus>' +
+        '<select id="l-un">' + uns + '</select>' +
+      '</div></div>' +
+      '<p class="sub">Cada lançamento soma. Contou três potes, lance os três — ' +
+      'não precisa somar de cabeça.</p>' +
+      '<button class="big" data-a="lancar-ok">Lançar</button>' +
+      (feito ? '<button class="big ghost" data-a="desfazer">Desfazer o último lançamento</button>' : '') +
+      '<button class="big ghost" data-a="ir" data-t="contar">Voltar</button>';
+  }
+
+  function telaRelatorio(){
+    if (S.carregando || !S.relatorio) return cabecalho() + '<p class="sub">Carregando…</p>';
+    var r = S.relatorio, a = r.ajustes || [];
+    var linhas = a.map(function(x){
+      var dif = Number(x.diferenca);
+      return '<tr><td><b>' + esc(x.name) + '</b><br><small style="color:var(--muted)">' +
+        esc(x.categoria || '') + '</small></td>' +
+        '<td class="n">' + n3(x.qtd_sistema) + '</td>' +
+        '<td class="n">' + n3(x.qtd_contada) + '</td>' +
+        '<td class="n dif ' + (dif > 0 ? 'mais' : 'menos') + '"><b>' + (dif > 0 ? '+' : '') + n3(dif) +
+          '</b><br><small>' + esc(x.unit || '') + '</small></td>' +
+        '<td class="n">' + (x.valor_estimado ? dinheiro(x.valor_estimado) : '—') + '</td></tr>';
+    }).join('');
+
+    return cabecalho() +
+      (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
+      '<h1>' + (r.contagem.status === 'aberta' ? 'Parcial da contagem' : 'Ajustes para a Takeat') + '</h1>' +
+      '<p class="sub">' + r.itens_contados + ' de ' + r.total_itens + ' itens contados · ' +
+        esc(dh(r.contagem.opened_at)) +
+        (r.contagem.closed_at ? ' até ' + esc(dh(r.contagem.closed_at)) : ' — ainda aberta') + '</p>' +
+      (a.length
+        ? '<div class="msg w"><b>' + r.resumo.perdas + ' perdas</b> (' + dinheiro(r.resumo.valor_perdas) +
+          ') e <b>' + r.resumo.sobras + ' sobras</b> (' + dinheiro(r.resumo.valor_sobras) + ').' +
+          ' Digite estes números em Perdas e Sobras na Takeat.</div>' +
+          '<table><thead><tr><th>Item</th><th class="n">Takeat</th><th class="n">Contado</th>' +
+          '<th class="n">Diferença</th><th class="n">Valor</th></tr></thead><tbody>' + linhas + '</tbody></table>' +
+          '<button class="big ghost" data-a="csv">Baixar planilha</button>'
+        : '<div class="msg s">Nenhuma diferença até agora. O estoque bate com a Takeat.</div>') +
+      '<button class="big ghost" data-a="ir" data-t="inicio">Voltar</button>';
+  }
+
+  function render(){
+    if (!TOKEN) { app.innerHTML = '<div class="msg e">Link inválido. Peça o link da sua unidade à gerência.</div>'; return; }
+    if (S.tela === 'pin') app.innerHTML = telaPin();
+    else if (S.tela === 'inicio') app.innerHTML = telaInicio();
+    else if (S.tela === 'contar') app.innerHTML = telaContar();
+    else if (S.tela === 'lancar') app.innerHTML = telaLancar();
+    else app.innerHTML = telaRelatorio();
+
+    var b = document.getElementById('busca');
+    if (b) b.oninput = function(){ S.busca = b.value; var p = b.selectionStart;
+      render(); var n = document.getElementById('busca');
+      if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch(e){} } };
+  }
+
+  // ---------- dados ----------
+  function carregarLinhas(){
+    S.carregando = true; render();
+    return chamar({ action:'linhas', unit_token:TOKEN, pin:S.pin,
+                    pendentes: S.so_pendentes ? true : undefined })
+      .then(function(j){
+        S.linhas = j.linhas; S.total = j.total; S.feitas = j.feitas;
+        S.contagem = j.contagem; S.carregando = false; S.erro = ''; render();
+      })
+      .catch(function(e){ S.carregando = false; S.erro = e.message; render(); });
+  }
+
+  function carregarRelatorio(){
+    S.carregando = true; S.tela = 'relatorio'; render();
+    return chamar({ action:'relatorio', unit_token:TOKEN, pin:S.pin })
+      .then(function(j){ S.relatorio = j; S.carregando = false; render(); })
+      .catch(function(e){ S.carregando = false; S.erro = e.message; S.tela = 'inicio'; render(); });
+  }
+
+  function baixarCSV(){
+    var a = (S.relatorio && S.relatorio.ajustes) || [];
+    var linhas = [['Item','Categoria','Unidade','Takeat','Contado','Diferenca','Tipo','Valor estimado']];
+    a.forEach(function(x){
+      linhas.push([x.name, x.categoria || '', x.unit || '',
+        n3(x.qtd_sistema), n3(x.qtd_contada), n3(x.diferenca), x.tipo,
+        (Number(x.valor_estimado) || 0).toFixed(2).replace('.', ',')]);
+    });
+    var csv = '﻿' + linhas.map(function(l){
+      return l.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';');
+    }).join('\r\n');
+    var url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+    var el = document.createElement('a');
+    el.href = url; el.download = 'contagem-' + new Date().toISOString().slice(0,10) + '.csv';
+    el.click(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+  }
+
+  function escanear(botao){
+    var video = document.getElementById('leitor');
+    if (!('BarcodeDetector' in window) || !video) {
+      S.erro = 'Este aparelho não lê QR pela câmera. Conte digitando.'; return render();
+    }
+    botao.disabled = true; botao.textContent = 'Abrindo câmera…';
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
+      .then(function(stream){
+        video.style.display = 'block'; video.srcObject = stream; video.play();
+        var det = new window.BarcodeDetector({ formats:['qr_code'] });
+        var parar = function(){ stream.getTracks().forEach(function(t){ t.stop(); }); video.style.display = 'none'; };
+        var tick = function(){
+          if (!stream.active) return;
+          det.detect(video).then(function(r){
+            if (r && r.length) { lerEtiqueta(r[0].rawValue); setTimeout(tick, 1400); }
+            else setTimeout(tick, 350);
+          }).catch(function(){ setTimeout(tick, 500); });
+        };
+        setTimeout(tick, 600);
+        setTimeout(function(){ if (stream.active) { parar(); render(); } }, 120000);
+      })
+      .catch(function(e){ S.erro = 'Não consegui abrir a câmera: ' + e.message; render(); });
+  }
+
+  // Lê o código e soma a medida da etiqueta na linha do produto.
+  function lerEtiqueta(codigo){
+    chamar({ action:'escanear', unit_token:TOKEN, pin:S.pin, code:codigo })
+      .then(function(j){
+        toque();
+        S.aviso = j.linha.name + ': ' + n3(j.linha.qtd_contada) + ' ' + (j.linha.unit || '') + ' contados.';
+        S.erro = '';
+        atualizarLinha(j.linha, j);
+      })
+      .catch(function(e){
+        var d = e.dados || {};
+        if (d.precisa_qtd) {
+          S.lancando = { id:d.line_id, name:d.produto, unit:d.unidade_item,
+                         qtd_sistema:null, qtd_contada:null };
+          S.lancQtd = ''; S.lancUn = d.unidade_item; S.erro = '';
+          S.tela = 'lancar'; return render();
+        }
+        S.erro = e.message; render();
+      });
+  }
+
+  function atualizarLinha(nova, totais){
+    var achou = false;
+    S.linhas = S.linhas.map(function(l){
+      if (l.id !== nova.id) return l;
+      achou = true;
+      return { id:l.id, categoria:l.categoria, name:nova.name, unit:nova.unit,
+               qtd_sistema:nova.qtd_sistema, qtd_contada:nova.qtd_contada,
+               diferenca:nova.diferenca, contada_por:l.contada_por };
+    });
+    if (totais && totais.total !== undefined) { S.total = totais.total; S.feitas = totais.feitas; }
+    if (!achou) return carregarLinhas();
+    render();
+  }
+
+  // ---------- eventos ----------
+  document.addEventListener('click', function(ev){
+    var el = ev.target.closest('button'); if (!el) return;
+    var d = el.getAttribute('data-d'), a = el.getAttribute('data-a');
+
+    if (d !== null && d !== undefined) { if (S.pin.length < 6) S.pin += d; S.erro = ''; return render(); }
+    if (a === 'limpar') { S.pin = ''; return render(); }
+    if (a === 'apagar') { S.pin = S.pin.slice(0, -1); return render(); }
+    if (a === 'sair') { S = { pin:'', sessao:null, contagem:null, tela:'pin', erro:'', aviso:'',
+                              linhas:[], total:0, feitas:0, busca:'', categoria:'', so_pendentes:true,
+                              catsEscolhidas:[], lancando:null, lancQtd:'', lancUn:'',
+                              relatorio:null, carregando:false }; return render(); }
+
+    if (a === 'entrar') {
+      el.disabled = true; el.textContent = 'Entrando...';
+      chamar({ action:'atual', unit_token:TOKEN, pin:S.pin })
+        .then(function(j){ S.sessao = j; S.contagem = j.contagem; S.tela = 'inicio'; S.erro = ''; toque(); render(); })
+        .catch(function(e){ S.erro = e.message; S.pin = ''; render(); });
+      return;
+    }
+
+    if (a === 'cat') {
+      var v = el.getAttribute('data-v');
+      var i = S.catsEscolhidas.indexOf(v);
+      if (i >= 0) S.catsEscolhidas.splice(i, 1); else S.catsEscolhidas.push(v);
+      return render();
+    }
+
+    if (a === 'abrir') {
+      el.disabled = true; el.textContent = 'Abrindo...';
+      chamar({ action:'abrir', unit_token:TOKEN, pin:S.pin, categorias:S.catsEscolhidas })
+        .then(function(j){
+          S.contagem = j.contagem; S.aviso = j.linhas + ' itens na lista.';
+          S.tela = 'contar'; toque(); return carregarLinhas();
+        })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+
+    if (a === 'ir') {
+      var t = el.getAttribute('data-t');
+      S.erro = ''; S.aviso = '';
+      if (t === 'contar') { S.tela = 'contar'; return carregarLinhas(); }
+      S.tela = t; return render();
+    }
+
+    if (a === 'pendentes') { S.so_pendentes = !S.so_pendentes; return carregarLinhas(); }
+    if (a === 'escanear') return escanear(el);
+    if (a === 'ver-relatorio') return carregarRelatorio();
+    if (a === 'csv') return baixarCSV();
+
+    if (a === 'lancar') {
+      var id = el.getAttribute('data-id');
+      S.lancando = S.linhas.filter(function(l){ return l.id === id; })[0];
+      if (!S.lancando) return;
+      S.lancQtd = ''; S.lancUn = S.lancando.unit; S.erro = ''; S.aviso = '';
+      S.tela = 'lancar'; toque(); return render();
+    }
+
+    if (a === 'lancar-ok') {
+      var q = (document.getElementById('l-qtd') || {}).value;
+      var u = (document.getElementById('l-un') || {}).value;
+      if (!q || Number(String(q).replace(',', '.')) <= 0) { S.erro = 'Informe a quantidade.'; return render(); }
+      el.disabled = true; el.textContent = 'Lançando...';
+      chamar({ action:'lancar', unit_token:TOKEN, pin:S.pin, line_id:S.lancando.id, qtd:q, un:u })
+        .then(function(j){
+          S.aviso = j.linha.name + ': ' + n3(j.linha.qtd_contada) + ' ' + (j.linha.unit || '') + '.';
+          S.erro = ''; S.tela = 'contar'; toque(); atualizarLinha(j.linha, j);
+        })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+
+    if (a === 'desfazer') {
+      el.disabled = true;
+      chamar({ action:'desfazer', unit_token:TOKEN, pin:S.pin, line_id:S.lancando.id })
+        .then(function(j){
+          S.aviso = 'Lançamento desfeito.'; S.erro = ''; S.tela = 'contar'; atualizarLinha(j.linha, j);
+        })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+
+    if (a === 'fechar') {
+      if (!confirm('Fechar a contagem? Depois de fechada não dá para lançar mais nada.')) return;
+      el.disabled = true; el.textContent = 'Fechando...';
+      chamar({ action:'fechar', unit_token:TOKEN, pin:S.pin })
+        .then(function(){ S.contagem = null; S.aviso = 'Contagem fechada.'; return carregarRelatorio(); })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

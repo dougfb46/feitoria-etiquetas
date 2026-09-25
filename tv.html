@@ -73,7 +73,7 @@
 <div class="contadores">
   <div class="cont g"><b id="c-venc">0</b><span>Vencidos</span></div>
   <div class="cont a"><b id="c-hoje">0</b><span>Vencem em 24h</span></div>
-  <div class="cont o"><b id="c-prox">0</b><span>No prazo</span></div>
+  <div class="cont o"><b id="c-prox">0</b><span>Em circulação</span></div>
 </div>
 
 <div class="lista" id="lista"></div>
@@ -151,6 +151,7 @@
       return '<div class="item ' + cls + '">' +
         '<div class="barra' + pisca + '"></div>' +
         '<div class="nome">' + esc(i.product_name) +
+          (i.medida ? ' <span style="font-weight:400;color:var(--fraco)">' + esc(i.medida) + '</span>' : '') +
           '<em>' + esc(METODO[i.storage_method] || i.storage_method) + ' · ' + esc(i.code) +
           ' · ' + esc(String(i.employee_name).split(' ')[0]) + '</em></div>' +
         '<div class="prazo' + pisca + '">' + faltaTexto(i.horas_restantes) + '</div>' +

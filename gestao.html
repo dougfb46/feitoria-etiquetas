@@ -158,7 +158,7 @@
             .then(function(d){ S.equipe = d || []; });
     } else if (S.aba === 'produtos') {
       p = rest('label_products?restaurant_id=eq.' + S.unidade +
-               '&select=id,name,category,unit,active,takeat_catalog_id,takeat_name,' +
+               '&select=id,name,category,unit,active,notes,takeat_catalog_id,takeat_name,' +
                'label_shelf_lives(id,storage_method,shelf_life_hours)&order=category,name')
             .then(function(d){ S.produtos = d || []; });
     } else {
@@ -217,10 +217,14 @@
             ? '<span class="pill p-dv">nome difere</span>' : '<span class="pill p-ok">vinculado</span>')
         : '<span class="pill p-av">avulso</span>';
 
+      var aConfirmar = /por analogia/.test(p.notes || '');
+
       return '<tr' + (p.active ? '' : ' style="opacity:.5"') + '>' +
         '<td><b>' + esc(p.name) + '</b><br><small style="color:var(--muted)">' +
           esc(p.category || 'Sem categoria') + (p.unit ? ' · ' + esc(p.unit) : '') + '</small></td>' +
-        '<td>' + prazos + '</td>' +
+        '<td>' + prazos +
+          (aConfirmar ? '<br><span class="pill p-dv">prazo a confirmar com a cozinha</span>' : '') +
+        '</td>' +
         '<td>' + vinc + '</td>' +
         '<td class="dir">' +
           '<button class="btn ghost sm" data-a="editar" data-id="' + esc(p.id) + '">Editar</button> ' +

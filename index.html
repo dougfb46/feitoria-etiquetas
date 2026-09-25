@@ -16,7 +16,9 @@
   .top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 0 12px;border-bottom:1px solid var(--line);margin-bottom:16px}
   .top b{font-size:15px}
   .top small{color:var(--muted);font-size:13px;display:block}
-  .link{background:none;border:none;color:var(--accent);font:inherit;font-size:14px;cursor:pointer;padding:6px}
+  .link{background:none;border:none;color:var(--accent);font:inherit;font-size:14px;cursor:pointer;padding:6px;
+        display:block;margin:0 auto;text-decoration:underline}
+  .card.on{outline:2px solid var(--accent);outline-offset:-2px}
   .imp{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;padding:9px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface)}
   .imp .dotp{width:9px;height:9px;border-radius:50%;background:#C2C9C4;flex:0 0 auto}
   .imp.on .dotp{background:var(--accent)}
@@ -120,7 +122,7 @@
   var S = { pin:'', sessao:null, produto:null, metodo:null, qtd:1, tela:'pin',
             erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3,
             itens:[], item:null, carregando:false, medQtd:'', medUn:'',
-            porcaoOn:false, ultima:null,
+            porcaoOn:false, ultima:null, horas:null, outroM:null, outroD:3,
             av:{ nome:'', metodo:'refrigerado', dias:3, qtd:1 } };
 
   try { var dsalvo = parseInt(localStorage.getItem('feitoria_densidade'), 10);
@@ -252,12 +254,17 @@
     return c;
   }
 
-  function exemploPreview(){
+  function horasAtuais(){
+    if (S.horas) return S.horas;
     var s = (S.produto.label_shelf_lives || []).filter(function(z){ return z.storage_method === S.metodo; })[0];
+    return s ? s.shelf_life_hours : 0;
+  }
+
+  function exemploPreview(){
     var agora = new Date();
     return { unidade:S.sessao.unidade.nome, produto:S.produto.name, conservacao:S.metodo,
       manipulado_em:agora.toISOString(),
-      validade:new Date(agora.getTime() + s.shelf_life_hours * 3600000).toISOString(),
+      validade:new Date(agora.getTime() + horasAtuais() * 3600000).toISOString(),
       responsavel:S.sessao.colaborador.nome, codigo:'AO-IMPRIMIR',
       medida:medidaTexto() };
   }
@@ -468,6 +475,35 @@
       '<button class="big ghost" data-a="voltar">Voltar</button>';
   }
 
+  // Sai do cadastro sem sair do produto: o item continua vinculado e entra no historico.
+  function telaOutro(){
+    var cad = {};
+    (S.produto.label_shelf_lives || []).forEach(function(z){ cad[z.storage_method] = z.shelf_life_hours; });
+    var opcoes = Object.keys(METODOS).map(function(k){
+      var m = METODOS[k];
+      var sel = S.outroM === k ? ' on' : '';
+      var nota = cad[k] ? prazoTexto(cad[k]) + ' (no cadastro)' : 'fora do cadastro';
+      return '<button class="card' + sel + '" data-a="outro-m" data-v="' + k + '">' +
+             esc(m.nome) + ' — ' + esc(nota) + '<small>' + esc(m.dica) + '</small></button>';
+    }).join('');
+
+    var dias = '';
+    if (S.outroM) {
+      var padrao = cad[S.outroM] || 0;
+      dias = '<div class="campo"><label>Quantos dias vai durar assim?</label>' +
+             '<input id="o-dias" type="number" inputmode="numeric" min="1" max="180" ' +
+             'value="' + esc(S.outroD) + '" autocomplete="off">' +
+             (padrao ? '<p class="sub">No cadastro esse método é ' + esc(prazoTexto(padrao)) + '.</p>' : '') +
+             '</div>' +
+             '<button class="big" data-a="outro-ok">Usar esse prazo</button>';
+    }
+
+    return cabecalho() + '<h1>' + esc(S.produto.name) + '</h1>' +
+      '<p class="sub">Só desta vez. O cadastro não muda, e o item continua no histórico do produto.</p>' +
+      '<div class="grid">' + opcoes + '</div>' + dias +
+      '<button class="big ghost" data-a="voltar">Cancelar</button>';
+  }
+
   function telaConfirmar(){
     return cabecalho() + (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
       '<h1>Conferir e imprimir</h1>' +
@@ -489,6 +525,11 @@
         : '') +
       '<div class="qty"><button data-a="menos">-</button><span>' + S.qtd + '</span><button data-a="mais">+</button></div>' +
       '<p class="sub" style="text-align:center;margin:-8px 0 0">etiquetas a imprimir</p>' +
+      (S.horas
+        ? '<div class="msg s">Prazo alterado só desta vez: ' +
+          esc((METODOS[S.metodo] || {}).nome || S.metodo) + ' por ' + esc(prazoTexto(S.horas)) +
+          '. <button class="link" data-a="outro-limpar">voltar ao cadastro</button></div>'
+        : '<button class="link" data-a="ir" data-t="outro">Guardar de outro jeito</button>') +
       '<button class="big ghost" data-a="voltar">Voltar</button>' +
       '<div class="acoes"><button class="big" data-a="imprimir">Imprimir ' + S.qtd +
         (S.qtd === 1 ? ' etiqueta' : ' etiquetas') + '</button></div>';
@@ -608,6 +649,7 @@
     if (S.tela === 'pin') app.innerHTML = telaPin();
     else if (S.tela === 'produto') app.innerHTML = telaProduto();
     else if (S.tela === 'metodo') app.innerHTML = telaMetodo();
+    else if (S.tela === 'outro') app.innerHTML = telaOutro();
     else if (S.tela === 'validades') app.innerHTML = telaValidades();
     else if (S.tela === 'item') app.innerHTML = telaItem();
     else if (S.tela === 'avulso') app.innerHTML = telaAvulso();
@@ -708,6 +750,7 @@
     if (p) {
       S.produto = S.sessao.produtos.filter(function(z){ return z.id === p; })[0];
       S.aviso = ''; S.porcaoOn = false; S.medQtd = ''; S.medUn = '';
+      S.horas = null; S.outroM = null;
       var prazos = S.produto.label_shelf_lives || [];
       if (!prazos.length) { S.erro = 'Esse produto ainda não tem prazo cadastrado. Fale com a gerência.'; return render(); }
       if (prazos.length === 1) { S.metodo = prazos[0].storage_method; S.qtd = 1; S.tela = 'confirmar'; }
@@ -728,9 +771,31 @@
     if (a === 'repetir') {
       if (!S.ultima) return;
       S.produto = S.ultima.produto; S.metodo = S.ultima.metodo; S.qtd = S.ultima.qtd;
+      S.horas = S.ultima.horas || null;
       S.medQtd = S.ultima.medQtd; S.medUn = S.ultima.medUn; S.porcaoOn = S.ultima.porcaoOn;
       S.tela = 'confirmar'; S.aviso = ''; S.erro = '';
       toque(); return render();
+    }
+
+    if (a === 'outro-m') {
+      S.outroM = el.getAttribute('data-v');
+      var cad = (S.produto.label_shelf_lives || [])
+        .filter(function(z){ return z.storage_method === S.outroM; })[0];
+      S.outroD = cad ? Math.max(1, Math.round(cad.shelf_life_hours / 24)) : 3;
+      toque(); return render();
+    }
+    if (a === 'outro-ok') {
+      var dd = parseInt((document.getElementById('o-dias') || {}).value, 10);
+      if (!(dd >= 1 && dd <= 180)) { S.erro = 'Informe de 1 a 180 dias.'; return render(); }
+      S.metodo = S.outroM; S.horas = dd * 24; S.outroM = null;
+      S.erro = ''; S.tela = 'confirmar'; toque(); return render();
+    }
+    if (a === 'outro-limpar') {
+      S.horas = null; S.outroM = null;
+      var temPrazo = (S.produto.label_shelf_lives || [])
+        .filter(function(z){ return z.storage_method === S.metodo; }).length;
+      if (!temPrazo) { S.tela = 'metodo'; S.metodo = null; }
+      return render();
     }
 
     if (a === 'ir') {
@@ -804,6 +869,7 @@
     }
 
     if (a === 'voltar') {
+      if (S.tela === 'outro') { S.outroM = null; S.erro = ''; S.tela = 'confirmar'; return render(); }
       S.tela = (S.tela === 'confirmar' && (S.produto.label_shelf_lives || []).length > 1) ? 'metodo' : 'produto';
       return render();
     }
@@ -820,18 +886,18 @@
       var qtd = S.qtd;
       el.disabled = true; el.textContent = 'Imprimindo...';
       chamar({ action:'print', unit_token:TOKEN, pin:S.pin, product_id:S.produto.id,
-               storage_method:S.metodo, quantity:qtd,
+               storage_method:S.metodo, quantity:qtd, horas:S.horas,
                medida_qtd:S.medQtd, medida_un:S.medUn || unidadeSugerida() })
         .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
         .then(function(j){
           freqMarcar(S.produto.id);
-          S.ultima = { produto:S.produto, metodo:S.metodo, qtd:qtd,
+          S.ultima = { produto:S.produto, metodo:S.metodo, qtd:qtd, horas:S.horas,
                        medQtd:S.medQtd, medUn:S.medUn, porcaoOn:S.porcaoOn };
           S.aviso = qtd + (qtd === 1 ? ' etiqueta' : ' etiquetas') + ' — ' + j.etiqueta.produto +
                     (j.etiqueta.medida ? ' (' + j.etiqueta.medida + ')' : '') +
                     ' · ' + j.etiquetas[0].codigo +
                     (qtd > 1 ? ' até ' + j.etiquetas[qtd - 1].codigo : '');
-          S.tela = 'produto'; S.produto = null; S.metodo = null; S.busca = '';
+          S.tela = 'produto'; S.produto = null; S.metodo = null; S.busca = ''; S.horas = null;
           S.medQtd = ''; S.medUn = ''; S.erro = '';
           toque(); render();
           setTimeout(function(){ S.aviso = ''; if (S.tela === 'produto') render(); }, 7000);
