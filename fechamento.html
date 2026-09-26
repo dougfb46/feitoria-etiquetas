@@ -36,7 +36,7 @@
   .msg.s{background:var(--ok-bg);color:var(--accent)}
   .msg.w{background:var(--amber-bg);color:var(--amber)}
 
-  .placar{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:4px 0 18px}
+  .placar{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:4px 0 18px}
   .p{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
   .p b{display:block;font-size:26px;font-weight:700;line-height:1.1}
   .p span{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
@@ -68,9 +68,12 @@
                  border-radius:10px;background:var(--surface);color:var(--ink)}
   textarea{min-height:92px;resize:vertical}
   .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:8px}
-  .fotos div{aspect-ratio:1;border-radius:10px;background:var(--surface);border:1px solid var(--line);
-             display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);
-             background-size:cover;background-position:center}
+  .fotos div{position:relative;aspect-ratio:1;border-radius:10px;background:var(--surface);
+             border:1px solid var(--line);background-size:cover;background-position:center;overflow:hidden}
+  .fotos .rm{position:absolute;top:5px;right:5px;border:none;border-radius:7px;padding:5px 8px;
+             font:inherit;font-size:12px;background:rgba(0,0,0,.62);color:#fff;cursor:pointer}
+  .fotos .tp{position:absolute;left:5px;bottom:5px;font-size:11px;letter-spacing:.07em;
+             text-transform:uppercase;background:rgba(0,0,0,.62);color:#fff;padding:3px 7px;border-radius:7px}
   .acoes{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
          background:linear-gradient(180deg,rgba(242,244,241,0) 0%,var(--ground) 32%)}
   .acoes .dentro{max-width:760px;margin:0 auto;display:flex;gap:10px}
@@ -100,7 +103,7 @@
 
   var VAZIO = { pin:'', sessao:null, fechamento:null, resumo:null, tela:'pin',
                 erro:'', aviso:'', destino:'consumido', lancados:[], pendentes:[],
-                fotos:0, nota:'', relatorio:null, carregando:false, lendo:false };
+                fotos:0, fotosLixeira:0, galeria:[], tipoFoto:'lixeira', nota:'', relatorio:null, carregando:false, lendo:false };
   var S = JSON.parse(JSON.stringify(VAZIO));
   var app = document.getElementById('app');
   var pararLeitor = null;
@@ -130,9 +133,11 @@
         return j; }); });
   }
 
-  var ROTULO = { consumido:'Consumido', sobra:'Sobra', vencido:'Vencido', quebra:'Quebra', outro:'Outro' };
+  var ROTULO = { consumido:'Consumido', sobra:'Sobra', revalidado:'Revalidado',
+                 vencido:'Vencido', quebra:'Quebra', outro:'Outro' };
   var DICA = {
     consumido:'acabou no uso normal', sobra:'sobrou e foi guardado',
+    revalidado:'trocou de etiqueta, continua no estoque',
     vencido:'passou da validade, foi fora', quebra:'caiu, queimou, estragou'
   };
 
@@ -185,11 +190,13 @@
       '<div class="p r"><b>' + perdas + '</b><span>Perdas</span></div>' +
       '<div class="p a"><b>' + (r.sobras || 0) + '</b><span>Sobras</span></div>' +
       '<div class="p v"><b>' + (r.consumidos || 0) + '</b><span>Consumidos</span></div>' +
+      (Number(r.revalidados || 0)
+        ? '<div class="p"><b>' + r.revalidados + '</b><span>Revalidados</span></div>' : '') +
     '</div>';
   }
 
   function telaLancar(){
-    var destinos = ['consumido','sobra','vencido','quebra'].map(function(k){
+    var destinos = ['consumido','sobra','revalidado','vencido','quebra'].map(function(k){
       return '<button class="' + (S.destino === k ? 'on' : '') + '" data-a="destino" data-v="' + k + '">' +
              esc(ROTULO[k]) + '<small>' + esc(DICA[k]) + '</small></button>';
     }).join('');
@@ -224,17 +231,29 @@
   }
 
   function telaFotos(){
-    var g = '';
-    for (var i = 0; i < S.fotos; i++) g += '<div>foto ' + (i + 1) + '</div>';
+    var g = S.galeria.map(function(f){
+      return '<div style="background-image:url(' + esc(f.url) + ')">' +
+        '<button class="rm" data-a="apagar-foto" data-id="' + esc(f.id) + '">remover</button>' +
+        '<span class="tp">' + (f.tipo === 'lixeira' ? 'lixeira' : 'outra') + '</span></div>';
+    }).join('');
+
     return cabecalho() +
       (S.erro  ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
       (S.aviso ? '<div class="msg s">' + esc(S.aviso) + '</div>' : '') +
       '<h1>Fotos e observação</h1>' +
-      '<p class="sub">Fotografe as lixeiras e o que foi descartado. As fotos ficam guardadas ' +
-      'no relatório do dia.</p>' +
+      (S.fotosLixeira
+        ? '<div class="msg s">Foto da lixeira registrada. As outras são opcionais.</div>'
+        : '<div class="msg w"><b>A foto da lixeira é obrigatória.</b> Sem ela o dia não fecha.</div>') +
+      '<div class="destinos" style="grid-template-columns:repeat(2,1fr)">' +
+        '<button class="' + (S.tipoFoto === 'lixeira' ? 'on' : '') + '" data-a="tipo-foto" data-v="lixeira">' +
+          'Lixeira<small>o que foi descartado</small></button>' +
+        '<button class="' + (S.tipoFoto === 'outra' ? 'on' : '') + '" data-a="tipo-foto" data-v="outra">' +
+          'Outra<small>opcional</small></button>' +
+      '</div>' +
       '<input type="file" id="foto" accept="image/*" capture="environment" style="display:none">' +
-      '<button class="big" data-a="tirar-foto">Adicionar foto</button>' +
-      (S.fotos ? '<div class="fotos">' + g + '</div>' : '') +
+      '<button class="big" data-a="tirar-foto">Tirar foto de ' +
+        (S.tipoFoto === 'lixeira' ? 'lixeira' : 'outra coisa') + '</button>' +
+      (S.galeria.length ? '<div class="fotos">' + g + '</div>' : '') +
       '<div class="campo"><label>Observação do dia (opcional)</label>' +
         '<textarea id="nota" placeholder="Ex.: freezer 2 desligou à tarde, perdemos duas caixas de pastel">' +
         esc(S.nota) + '</textarea></div>' +
@@ -258,6 +277,9 @@
       (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
       '<h1>Conferir e fechar</h1>' +
       '<p class="sub">' + (r.baixas || 0) + ' etiqueta(s) lançadas · ' + S.fotos + ' foto(s).</p>' +
+      (S.fotosLixeira ? '' :
+        '<div class="msg e"><b>Falta a foto da lixeira.</b> ' +
+        '<button class="link" data-a="ir" data-t="fotos">Tirar agora</button></div>') +
       placar() +
       (pend
         ? '<h2>' + pend + ' vencida(s) que ninguém lançou</h2>' +
@@ -269,7 +291,7 @@
         : '<div class="msg s">Nenhuma etiqueta vencida ficou para trás.</div>') +
       '<div class="acoes"><div class="dentro">' +
         '<button class="big ghost" data-a="ir" data-t="fotos">Voltar</button>' +
-        '<button class="big" data-a="fechar">Fechar o dia</button>' +
+        '<button class="big" data-a="fechar"' + (S.fotosLixeira ? '' : ' disabled') + '>Fechar o dia</button>' +
       '</div></div>';
   }
 
@@ -278,7 +300,7 @@
     var r = S.relatorio.resumo, linhas = S.relatorio.linhas || [], fotos = S.relatorio.fotos || [];
     var perdas = Number(r.vencidos || 0) + Number(r.quebras || 0);
 
-    var grupos = {}, ordem = ['vencido','quebra','sobra','consumido','outro'];
+    var grupos = {}, ordem = ['vencido','quebra','sobra','revalidado','consumido','outro'];
     linhas.forEach(function(l){ (grupos[l.outcome] = grupos[l.outcome] || []).push(l); });
     var corpo = ordem.filter(function(k){ return grupos[k]; }).map(function(k){
       return '<h2>' + esc(ROTULO[k] || k) + '</h2><table><tbody>' +
@@ -307,6 +329,8 @@
         '<div class="p r"><b>' + perdas + '</b><span>Perdas</span></div>' +
         '<div class="p a"><b>' + (r.sobras || 0) + '</b><span>Sobras</span></div>' +
         '<div class="p v"><b>' + (r.consumidos || 0) + '</b><span>Consumidos</span></div>' +
+        (Number(r.revalidados || 0)
+          ? '<div class="p"><b>' + r.revalidados + '</b><span>Revalidados</span></div>' : '') +
       '</div>' +
       corpo + galeria +
       (r.nota ? '<h2>Observação</h2><p>' + esc(r.nota) + '</p>' : '') +
@@ -334,6 +358,7 @@
     return chamar({ action:'atual', unit_token:TOKEN, pin:S.pin }).then(function(j){
       S.sessao = j; S.fechamento = j.fechamento; S.resumo = j.resumo;
       S.fotos = j.resumo ? Number(j.resumo.fotos || 0) : 0;
+      S.fotosLixeira = j.resumo ? Number(j.resumo.fotos_lixeira || 0) : 0;
       S.nota = (j.fechamento && j.fechamento.nota) || '';
       return j;
     });
@@ -357,6 +382,17 @@
       .catch(function(e){ S.erro = e.message; S.aviso = ''; render(); });
   }
 
+  function carregarFotos(){
+    return chamar({ action:'fotos', unit_token:TOKEN, pin:S.pin })
+      .then(function(j){
+        S.galeria = j.fotos || [];
+        S.fotos = S.galeria.length;
+        S.fotosLixeira = S.galeria.filter(function(f){ return f.tipo === 'lixeira'; }).length;
+        render();
+      })
+      .catch(function(e){ S.erro = e.message; render(); });
+  }
+
   function salvarNota(){
     chamar({ action:'nota', unit_token:TOKEN, pin:S.pin, nota:S.nota }).catch(function(){});
   }
@@ -373,9 +409,12 @@
         var c = document.createElement('canvas');
         c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        chamar({ action:'foto', unit_token:TOKEN, pin:S.pin,
+        chamar({ action:'foto', unit_token:TOKEN, pin:S.pin, tipo:S.tipoFoto,
                  imagem: c.toDataURL('image/jpeg', 0.72) })
-          .then(function(j){ S.fotos = j.fotos; S.aviso = 'Foto guardada.'; render(); })
+          .then(function(j){
+            S.fotos = j.fotos; S.fotosLixeira = j.fotos_lixeira;
+            S.aviso = 'Foto guardada.'; return carregarFotos();
+          })
           .catch(function(e){ S.erro = e.message; S.aviso = ''; render(); });
       };
       img.src = leitor.result;
@@ -492,6 +531,7 @@
         return;
       }
       if (t === 'lancar') { S.tela = 'lancar'; return carregarLancados(); }
+      if (t === 'fotos') { S.tela = 'fotos'; render(); return carregarFotos(); }
       S.tela = t; return render();
     }
 
@@ -506,7 +546,15 @@
       return;
     }
 
+    if (a === 'tipo-foto') { S.tipoFoto = el.getAttribute('data-v'); toque(); return render(); }
     if (a === 'tirar-foto') { var inp = document.getElementById('foto'); if (inp) inp.click(); return; }
+    if (a === 'apagar-foto') {
+      el.disabled = true;
+      chamar({ action:'apagar_foto', unit_token:TOKEN, pin:S.pin, foto_id:el.getAttribute('data-id') })
+        .then(function(){ S.aviso = 'Foto removida.'; return carregarFotos(); })
+        .catch(function(e){ S.erro = e.message; render(); });
+      return;
+    }
 
     if (a === 'fechar') {
       if (!confirm('Fechar o dia? Depois de fechado não dá para lançar mais nada.')) return;
