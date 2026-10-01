@@ -70,7 +70,13 @@
      padding:10px;border-bottom:1px solid var(--line)}
   td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
   td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  #leitor{display:none;width:100%;max-width:420px;margin:12px auto;border-radius:12px;background:#000}
+  /* Visor do QR: pequeno e no alto, para nao cobrir a tela nem a mao que segura a etiqueta */
+  #leitor{position:fixed;top:10px;left:50%;transform:translateX(-50%);
+          width:190px;height:142px;object-fit:cover;border-radius:14px;
+          border:2px solid var(--accent);box-shadow:0 10px 26px rgba(0,0,0,.30);
+          z-index:60;background:#000;display:none}
+  #leitor.on{display:block}
+  body.lendo{padding-top:150px}
 </style>
 </head>
 <body>
@@ -330,9 +336,10 @@
     botao.disabled = true; botao.textContent = 'Abrindo câmera…';
     navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
       .then(function(stream){
-        video.style.display = 'block'; video.srcObject = stream; video.play();
+        video.classList.add('on'); document.body.classList.add('lendo');
+        video.srcObject = stream; video.play();
         var det = new window.BarcodeDetector({ formats:['qr_code'] });
-        var parar = function(){ stream.getTracks().forEach(function(t){ t.stop(); }); video.style.display = 'none'; };
+        var parar = function(){ stream.getTracks().forEach(function(t){ t.stop(); }); video.classList.remove('on'); document.body.classList.remove('lendo'); };
         var tick = function(){
           if (!stream.active) return;
           det.detect(video).then(function(r){

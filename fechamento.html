@@ -84,7 +84,13 @@
      padding:10px;border-bottom:1px solid var(--line)}
   td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
   td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-  #leitor{display:none;width:100%;max-width:420px;margin:12px auto;border-radius:12px;background:#000}
+  /* Visor do QR: pequeno e no alto, para nao cobrir a tela nem a mao que segura a etiqueta */
+  #leitor{position:fixed;top:10px;left:50%;transform:translateX(-50%);
+          width:190px;height:142px;object-fit:cover;border-radius:14px;
+          border:2px solid var(--accent);box-shadow:0 10px 26px rgba(0,0,0,.30);
+          z-index:60;background:#000;display:none}
+  #leitor.on{display:block}
+  body.lendo{padding-top:150px}
   .ok-flash{position:fixed;inset:0;background:rgba(31,111,74,.22);pointer-events:none;opacity:0;
             transition:opacity .18s}
   .ok-flash.on{opacity:1}
@@ -226,7 +232,8 @@
       '<button class="big ghost" data-a="digitado">Lançar esse código</button>' +
       (lista ? '<h2>Baixados hoje (' + S.lancados.length + ')</h2>' + lista : '') +
       '<div class="acoes"><div class="dentro">' +
-        '<button class="big ghost" data-a="ir" data-t="fotos">Fotos e observação</button>' +
+        '<button class="big ghost" data-a="ir" data-t="fotos">Fotos</button>' +
+        '<button class="big" data-a="ir" data-t="conferir">Encerrar o fechamento</button>' +
       '</div></div>';
   }
 
@@ -259,7 +266,7 @@
         esc(S.nota) + '</textarea></div>' +
       '<button class="big ghost" data-a="ir" data-t="lancar">Voltar a lançar</button>' +
       '<div class="acoes"><div class="dentro">' +
-        '<button class="big" data-a="ir" data-t="conferir">Conferir e fechar</button>' +
+        '<button class="big" data-a="ir" data-t="conferir">Encerrar o fechamento</button>' +
       '</div></div>';
   }
 
@@ -275,8 +282,9 @@
 
     return cabecalho() +
       (S.erro ? '<div class="msg e">' + esc(S.erro) + '</div>' : '') +
-      '<h1>Conferir e fechar</h1>' +
-      '<p class="sub">' + (r.baixas || 0) + ' etiqueta(s) lançadas · ' + S.fotos + ' foto(s).</p>' +
+      '<h1>Encerrar o fechamento</h1>' +
+      '<p class="sub">' + (r.baixas || 0) + ' etiqueta(s) baixadas · ' + S.fotos + ' foto(s). ' +
+      'Encerrar fecha o dia, gera o relatório e envia por e-mail. Depois disso não dá para lançar mais nada.</p>' +
       (S.fotosLixeira ? '' :
         '<div class="msg e"><b>Falta a foto da lixeira.</b> ' +
         '<button class="link" data-a="ir" data-t="fotos">Tirar agora</button></div>') +
@@ -291,7 +299,7 @@
         : '<div class="msg s">Nenhuma etiqueta vencida ficou para trás.</div>') +
       '<div class="acoes"><div class="dentro">' +
         '<button class="big ghost" data-a="ir" data-t="fotos">Voltar</button>' +
-        '<button class="big" data-a="fechar"' + (S.fotosLixeira ? '' : ' disabled') + '>Fechar o dia</button>' +
+        '<button class="big" data-a="fechar"' + (S.fotosLixeira ? '' : ' disabled') + '>Encerrar e enviar</button>' +
       '</div></div>';
   }
 
@@ -432,12 +440,13 @@
     navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
       .then(function(stream){
         S.lendo = true; render();
-        video.style.display = 'block'; video.srcObject = stream; video.play();
+        video.classList.add('on'); document.body.classList.add('lendo');
+        video.srcObject = stream; video.play();
         var det = new window.BarcodeDetector({ formats:['qr_code'] });
         var ultimo = '', quando = 0;
         pararLeitor = function(){
           stream.getTracks().forEach(function(t){ t.stop(); });
-          video.style.display = 'none'; S.lendo = false; pararLeitor = null; render();
+          video.classList.remove('on'); document.body.classList.remove('lendo'); S.lendo = false; pararLeitor = null; render();
         };
         var tick = function(){
           if (!stream.active) return;
@@ -557,14 +566,14 @@
     }
 
     if (a === 'fechar') {
-      if (!confirm('Fechar o dia? Depois de fechado não dá para lançar mais nada.')) return;
-      el.disabled = true; el.textContent = 'Fechando...';
+      if (!confirm('Encerrar o fechamento de hoje? O relatório é gerado e enviado, e o dia não aceita mais lançamentos.')) return;
+      el.disabled = true; el.textContent = 'Encerrando...';
       chamar({ action:'fechar', unit_token:TOKEN, pin:S.pin, nota:S.nota })
         .then(function(j){
           S.fechamento = null; S.lancados = []; S.pendentes = [];
           S.aviso = j.email && j.email.ok
-            ? 'Dia fechado. Relatório enviado por e-mail.'
-            : 'Dia fechado. ' + (j.email && j.email.erro ? 'O e-mail não saiu: ' + j.email.erro : '');
+            ? 'Fechamento encerrado. Relatório enviado por e-mail.'
+            : 'Fechamento encerrado. ' + (j.email && j.email.erro ? 'O e-mail não saiu: ' + j.email.erro : '');
           return verRelatorio(j.closure_id);
         })
         .catch(function(e){ S.erro = e.message; render(); });
