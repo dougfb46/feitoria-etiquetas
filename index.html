@@ -91,7 +91,13 @@
   .ficha dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0;font-size:14.5px}
   .ficha dt{color:var(--muted)}
   .ficha dd{margin:0}
-  #leitor{width:100%;max-width:340px;border-radius:12px;display:none;margin:0 auto 12px}
+  /* Visor do QR: pequeno e no alto, para nao cobrir a tela nem a mao que segura a etiqueta */
+  #leitor{position:fixed;top:10px;left:50%;transform:translateX(-50%);
+          width:190px;height:142px;object-fit:cover;border-radius:14px;
+          border:2px solid var(--accent);box-shadow:0 10px 26px rgba(0,0,0,.30);
+          z-index:60;background:#000;display:none}
+  #leitor.on{display:block}
+  body.lendo{padding-top:150px}
   #folha{display:none}
   @media print{
     @page{size:50mm 30mm;margin:0}
@@ -104,6 +110,7 @@
 </head>
 <body>
 <div id="app"></div>
+<video id="leitor" playsinline muted></video>
 <div id="folha"></div>
 <script>
 (function(){
@@ -116,13 +123,14 @@
   var W = 576, H = 354;
   var EMPRESA_CURTA = 'FEITORIA PUB CAFE MOGI';
   var EMPRESA_LINHA = 'FEITORIA PUB CAFE MOGI LTDA - ME  ·  CNPJ 60.006.003/0001-64';
+  var QR_LADO = 124, QR_TOPO = 50;
   var MODELO_FALLBACK = { name_prefixes:['B1'], task:'v4', density:3, label_type:1, speed:1 };
   var TAM_FALLBACK = { w_px:W, h_px:H, offset_y_px:0 };
 
   var S = { pin:'', sessao:null, produto:null, metodo:null, qtd:1, tela:'pin',
             erro:'', aviso:'', busca:'', ultimo:0, bt:null, btMsg:'', btInfo:'', dens:3,
             itens:[], item:null, carregando:false, medQtd:'', medUn:'',
-            porcaoOn:false, ultima:null, horas:null, outroM:null, outroD:3,
+            porcaoOn:false, ultima:null, horas:null, outroM:null, outroD:3, lendo:false,
             av:{ nome:'', metodo:'refrigerado', dias:3, qtd:1 } };
 
   try { var dsalvo = parseInt(localStorage.getItem('feitoria_densidade'), 10);
@@ -205,7 +213,7 @@
         qr.addData(codigo);
         qr.make();
         var mods = qr.getModuleCount();
-        var lado = 124, px = lado / mods, x0 = W - lado - 14, y0 = 50;
+        var lado = QR_LADO, px = lado / mods, x0 = W - lado - 14, y0 = QR_TOPO;
         x.fillStyle = '#fff'; x.fillRect(x0 - 4, y0 - 4, lado + 8, lado + 8);
         x.fillStyle = '#000';
         for (var lin = 0; lin < mods; lin++) {
@@ -217,6 +225,19 @@
         }
         larguraTexto = W - 28 - lado - 16;
       } catch (e) {}
+    }
+
+    // Selo de revalidação. Fica fora do bloco do QR de propósito: se o QR falhar,
+    // o selo ainda tem que sair — é ele que avisa que aquele prazo foi reiniciado.
+    var rn = Number(dados.revalidacao_n || 0);
+    if (rn > 0) {
+      var sx = W - QR_LADO - 14, sy = QR_TOPO + QR_LADO + 10, sh = 36;
+      x.fillStyle = '#000'; x.fillRect(sx, sy, QR_LADO, sh);
+      x.fillStyle = '#fff';
+      x.font = 'bold 22px Arial, sans-serif';
+      x.textAlign = 'center';
+      x.fillText('REVAL. ' + rn + 'x', sx + QR_LADO / 2, sy + 7);
+      x.textAlign = 'left'; x.fillStyle = '#000';
     }
 
     x.font = 'bold 40px Arial, sans-serif';
@@ -458,6 +479,15 @@
           (S.ultima ? '<button data-a="repetir">Imprimir de novo</button>' : '') + '</div></div>'
         : '') +
       '<h1>O que você vai etiquetar?</h1>' +
+      '<button class="big ghost" style="margin:0 0 14px" data-a="revalidar">' +
+        (S.lendo ? 'Fechar a câmera' : 'Revalidar uma etiqueta') + '</button>' +
+      (S.lendo ? '' : '<p class="sub" style="margin:-8px 0 14px;font-size:13px">' +
+        'Reimprime com o mesmo prazo contando de agora. Tem limite por conservação, ' +
+        'e a etiqueta nova sai marcada com o número da revalidação.</p>') +
+      (S.lendo
+        ? '<div class="msg s">Aponte para o QR da etiqueta antiga. Sai uma nova com o mesmo prazo, ' +
+          'contando de agora, e a antiga é baixada.</div>'
+        : '') +
       '<input class="search" id="busca" placeholder="Buscar produto" value="' + esc(S.busca) + '" autocomplete="off">' +
       corpo +
       '<button class="big ghost" data-a="ir" data-t="avulso">Item fora da lista</button>';
@@ -570,7 +600,6 @@
         '<button class="btn big" style="margin:0" data-a="scan">Ler QR da etiqueta</button>' +
         '<input id="cod" placeholder="ou digite o código" autocomplete="off" style="width:100%;padding:14px;font-size:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">' +
       '</div></div>' +
-      '<video id="leitor" playsinline></video>' +
       corpo;
   }
 
@@ -711,33 +740,62 @@
   }
 
   // Leitura do QR pela câmera. Só existe no Chrome Android; sem ele, digita-se o código.
-  function escanear(botao){
+  // O visor é pequeno e fica no alto, para não cobrir a mão que segura a etiqueta.
+  var pararLeitor = null;
+
+  function escanear(aoLer){
+    if (S.lendo) { if (pararLeitor) pararLeitor(); return; }
     var video = document.getElementById('leitor');
     if (!('BarcodeDetector' in window) || !video) {
       S.erro = 'Este aparelho não lê QR pela câmera. Digite o código da etiqueta.';
       return render();
     }
-    botao.disabled = true; botao.textContent = 'Abrindo câmera…';
     navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
       .then(function(stream){
-        video.style.display = 'block';
+        S.lendo = true; S.erro = ''; render();
+        video.classList.add('on'); document.body.classList.add('lendo');
         video.srcObject = stream; video.play();
         var det = new window.BarcodeDetector({ formats:['qr_code'] });
-        var parar = function(){
+        pararLeitor = function(){
           stream.getTracks().forEach(function(t){ t.stop(); });
-          video.style.display = 'none';
+          video.classList.remove('on'); document.body.classList.remove('lendo');
+          S.lendo = false; pararLeitor = null; render();
         };
         var tick = function(){
           if (!stream.active) return;
           det.detect(video).then(function(r){
-            if (r && r.length) { parar(); abrirItem(r[0].rawValue); }
+            if (r && r.length) { var v = r[0].rawValue; pararLeitor(); aoLer(v); }
             else setTimeout(tick, 350);
           }).catch(function(){ setTimeout(tick, 500); });
         };
         setTimeout(tick, 600);
-        setTimeout(function(){ if (stream.active) { parar(); render(); } }, 45000);
+        setTimeout(function(){ if (stream.active) pararLeitor(); }, 60000);
       })
       .catch(function(e){ S.erro = 'Não consegui abrir a câmera: ' + e.message; render(); });
+  }
+
+  // Reimprime a etiqueta com o prazo contando de agora e baixa a antiga.
+  function revalidarPorCodigo(codigo){
+    S.erro = ''; S.aviso = 'Revalidando…'; render();
+    chamar({ action:'revalidar', unit_token:TOKEN, pin:S.pin, code:codigo })
+      .then(function(j){ return imprimir(j.etiquetas).then(function(){ return j; }); })
+      .then(function(j){
+        var e = j.etiqueta;
+        S.aviso = 'Revalidado ' + j.revalidacao_n + 'x: ' + e.produto +
+                  (e.medida ? ' (' + e.medida + ')' : '') +
+                  ' · nova ' + e.codigo + ' · vence ' + dh(e.validade) +
+                  '. A etiqueta ' + j.origem + ' foi baixada.' +
+                  (j.ultima ? ' Foi a última revalidação permitida para este item.' : '');
+        S.erro = ''; toque(); render();
+        setTimeout(function(){ S.aviso = ''; if (S.tela === 'produto') render(); }, 9000);
+      })
+      .catch(function(e){
+        var d = e.dados || {};
+        S.erro = d.limite_atingido
+          ? (d.produto ? d.produto + ': ' : '') + e.message
+          : (e.message || String(e));
+        S.aviso = ''; render();
+      });
   }
 
   document.addEventListener('click', function(ev){
@@ -765,7 +823,8 @@
     if (a === 'menos') { if (S.qtd > 1) S.qtd--; return render(); }
     if (a === 'mais')  { if (S.qtd < 20) S.qtd++; return render(); }
     if (a === 'conectar') return conectar(el);
-    if (a === 'scan') return escanear(el);
+    if (a === 'scan') return escanear(abrirItem);
+    if (a === 'revalidar') return escanear(revalidarPorCodigo);
 
     // repete a última etiqueta sem refazer o caminho todo — o caso mais comum
     if (a === 'repetir') {
