@@ -665,7 +665,7 @@
       '<div class="campo dupla">' +
         '<div><label>Quantas etiquetas</label><input id="av-qtd" type="number" min="1" max="20" value="' + S.av.qtd + '"></div>' +
         '<div><label>Porção — opcional</label>' +
-          '<div class="dupla"><input id="av-qtd" type="number" inputmode="decimal" step="0.001" min="0" placeholder="Qtd">' +
+          '<div class="dupla"><input id="av-medida-qtd" type="number" inputmode="decimal" step="0.001" min="0" placeholder="Qtd">' +
           '<select id="av-un">' + UNIDADES.map(function(u){
             return '<option value="' + u + '">' + u + '</option>'; }).join('') + '</select></div></div>' +
       '</div>' +
@@ -895,11 +895,17 @@
       S.av.nome = (document.getElementById('av-nome').value || '').trim();
       S.av.metodo = document.getElementById('av-metodo').value;
       S.av.dias = parseInt(document.getElementById('av-dias').value, 10) || 1;
-      S.av.qtd = parseInt(document.getElementById('av-qtd').value, 10) || 1;
+      S.av.qtd = Number(document.getElementById('av-qtd').value);
 
       if (S.av.nome.length < 2) { S.erro = 'Informe o nome do item.'; return render(); }
+      if (!Number.isInteger(S.av.qtd) || S.av.qtd < 1 || S.av.qtd > 20) {
+        S.erro = 'Informe de 1 a 20 etiquetas, sem casas decimais.'; return render();
+      }
+      var avq = document.getElementById('av-medida-qtd'), avu = document.getElementById('av-un');
+      if (avq && avq.value.trim() !== '' && (!Number.isFinite(Number(avq.value)) || Number(avq.value) <= 0)) {
+        S.erro = 'Informe uma porção maior que zero ou deixe o campo vazio.'; return render();
+      }
       el.disabled = true; el.textContent = 'Gerando…';
-      var avq = document.getElementById('av-qtd'), avu = document.getElementById('av-un');
       chamar({ action:'avulso', unit_token:TOKEN, pin:S.pin, nome:S.av.nome,
                storage_method:S.av.metodo, horas:S.av.dias * 24, quantity:S.av.qtd,
                medida_qtd: avq ? avq.value : '', medida_un: avu ? avu.value : 'UN' })
